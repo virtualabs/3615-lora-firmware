@@ -63,7 +63,7 @@ lib:
 	$(MAKE) -C $(OPENCM3_DIR) DEVICE=$(DEVICE) TARGETS=stm32/$(DEV_FAMILYCODE) -j `nproc`
 
 clean :
-	@rm *.bin *.hex *.elf *.o *.ld
+	@rm *.bin *.hex *.elf *.o *.ld lora/*.o
 
 ultraclean:
 	$(MAKE) -C $(OPENCM3_DIR) clean
