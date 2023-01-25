@@ -217,6 +217,7 @@ int main(void)
   uint16_t error = 0;
   uint32_t rx_params = 0;
 	int j = 0;
+  subghz_result_t res;
 	
 
   /* Setup clock & UART */
@@ -246,14 +247,25 @@ int main(void)
     __asm__("NOP");
   }
 
-  subghz_set_standby_mode(1);
-  subghz_set_tcxo_mode(SUBGHZ_TCXO_1V7, 10 << 6);
-  subghz_calibrate(0x7f);
+  subghz_set_tcxo_mode(SUBGHZ_TCXO_TRIM_1V7, 10 << 6);
+  res = subghz_calibrate(SUBGHZ_CALIB_ALL);
+  print_reg16_hex("calibrate_res", res);
+  if (SUBGHZ_CMD_SUCCESS(res))
+  {
+    printf("Calibration OK\n");
+  }
 
-  subghz_get_error(&error);
+  subghz_set_standby_mode(SUBGHZ_STDBY_HSE32);
 
   subghz_read_reg(SUBGHZ_GPKTCTL1AR, &reg);
   print_reg_hex("GPKTCTL1AR", reg);
+
+  status = subghz_get_error(&error);
+  print_reg16_hex("error", error);
+
+  status = subghz_get_status();
+  print_reg16_hex("status mode", SUBGHZ_STATUS_MODE(status));
+
 
 #if 0
   /* Read a register from SUBGHZ. */
