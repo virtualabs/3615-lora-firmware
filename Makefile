@@ -38,9 +38,9 @@ STFLASH         := st-flash
 
 #for the compilation
 ifeq ($(DEV_FLOATTYPE),soft)
-C_FLAGS	     = -Os -mthumb -mcpu=$(DEV_CPU) $(DEV_CFLAGS) 
+C_FLAGS	     = -Os -mthumb -mcpu=$(DEV_CPU) $(DEV_CFLAGS) -Wall 
 else
-C_FLAGS	     = -Os -mthumb -mcpu=$(DEV_CPU) $(DEV_CFLAGS) -m$(DEV_FLOATTYPE)-float -mfpu=$(DEV_FPUTYPE)
+C_FLAGS	     = -Os -mthumb -mcpu=$(DEV_CPU) $(DEV_CFLAGS) -m$(DEV_FLOATTYPE)-float -mfpu=$(DEV_FPUTYPE) -Wall
 endif
 
 INC_FLAGS    += -I$(OPENCM3_DIR)/include
