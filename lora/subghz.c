@@ -748,6 +748,7 @@ subghz_result_t subghz_set_packet_params(uint16_t preamble_length, subghz_det_le
  * 
  * @param   preamble_length     Preamble length in number of symbols
  * @param   header_type         variable/fixed length payload
+ * @param   payload_length      Length of payload in bytes
  * @param   crc_enabled         CRC enabled if true, disabled otherwise
  * @param   invert_iq           standard IQ setup if false, inverted IQ if true
  * @return  HAL status
