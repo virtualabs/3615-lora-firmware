@@ -768,3 +768,34 @@ subghz_result_t subghz_set_lora_packet_params(uint16_t preamble_length, subghz_l
 
   return subghz_write_command(SUBGHZ_SET_PACKET_PARAMS, params, 6);
 }
+
+// The base address for the 4-byte RNG register
+#define RANDOM_NUMBER_GENERATORBASEADDR 0x0819
+#define REG_ANA_LNA 0x08E2
+#define REG_ANA_MIXER 0x08E5
+
+void subghz_fill_random(uint8_t *randomStock, uint8_t len) {
+  // The RNG function returns 4 bytes. We need to make sure
+  // that the len is a multiple of 4
+  uint8_t fLen = len & 0b11111100;
+  if(fLen == 0) return; // Length below 4? --> abort.
+  uint8_t regAnaLna = 0, regAnaMixer = 0;
+
+  // Save original settings first, to restore them later...
+  Radio.Standby();
+  regAnaLna = Radio.Read(REG_ANA_LNA);
+  // Set radio in continuous reception
+  Radio.Write(REG_ANA_LNA, regAnaLna & ~(1 << 0));
+  regAnaMixer = Radio.Read(REG_ANA_MIXER);
+  Radio.Write(REG_ANA_MIXER, regAnaMixer & ~(1 << 7));
+  // SX126xSetRx(0xFFFFFF); // Rx Continuous
+  Radio.Rx(0xFFFFFF);
+
+  for (uint8_t i = 0; i < len; i += 4) {
+    // Read four random bytes and save them in the buffer
+    Radio.ReadBuffer(RANDOM_NUMBER_GENERATORBASEADDR, (uint8_t*)(randomStock + i), 4);
+  }
+  Radio.Standby();
+  Radio.Write(REG_ANA_LNA, regAnaLna);
+  Radio.Write(REG_ANA_MIXER, regAnaMixer);
+}
