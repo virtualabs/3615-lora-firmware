@@ -795,6 +795,8 @@ void subghz_fill_random(uint8_t *randomStock, uint8_t len) {
     // Read four random bytes and save them in the buffer
     Radio.ReadBuffer(RANDOM_NUMBER_GENERATORBASEADDR, (uint8_t*)(randomStock + i), 4);
   }
+  
+  // Restore settings.
   Radio.Standby();
   Radio.Write(REG_ANA_LNA, regAnaLna);
   Radio.Write(REG_ANA_MIXER, regAnaMixer);
