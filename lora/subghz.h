@@ -362,6 +362,6 @@ subghz_result_t subghz_set_packet_params(uint16_t preamble_length, subghz_det_le
 subghz_result_t subghz_set_lora_packet_params(uint16_t preamble_length, subghz_lora_packet_hdr_t header_type,
                                               uint8_t payload_length, bool crc_enabled, bool invert_iq);
 
-void fillRandom(uint8_t *randomStock, uint8_t len);
+void subghz_fill_random(uint8_t *randomStock, uint8_t len);
 
 #endif /* __INC_SUBGHZ_H */
