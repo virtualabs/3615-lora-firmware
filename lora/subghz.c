@@ -768,3 +768,36 @@ subghz_result_t subghz_set_lora_packet_params(uint16_t preamble_length, subghz_l
 
   return subghz_write_command(SUBGHZ_SET_PACKET_PARAMS, params, 6);
 }
+
+// The base address for the 4-byte RNG register
+#define RANDOM_NUMBER_GENERATORBASEADDR 0x0819
+#define REG_ANA_LNA 0x08E2
+#define REG_ANA_MIXER 0x08E5
+
+void subghz_fill_random(uint8_t *randomStock, uint8_t len) {
+  // The RNG function returns 4 bytes. We need to make sure
+  // that the len is a multiple of 4
+  uint8_t fLen = len & 0b11111100;
+  if(fLen == 0) return; // Length below 4? --> abort.
+  uint8_t regAnaLna = 0, regAnaMixer = 0;
+
+  // Save original settings first, to restore them later...
+  subghz_set_standby_mode(SUBGHZ_STDBY_HSE32);
+  subghz_read_reg(REG_ANA_LNA, &regAnaLna);
+  subghz_read_reg(REG_ANA_MIXER, &regAnaMixer);
+  // Set radio in continuous reception
+  subghz_write_reg(REG_ANA_LNA, regAnaLna & ~(1 << 0));
+  subghz_write_reg(REG_ANA_MIXER, regAnaMixer & ~(1 << 7));
+  // SX126xSetRx(0xFFFFFF); // Rx Continuous
+  subghz_set_rx_mode(0xFFFFFF);
+
+  for (uint8_t i = 0; i < len; i += 4) {
+    // Read four random bytes and save them in the buffer
+    subghz_read_regs(RANDOM_NUMBER_GENERATORBASEADDR, (uint8_t*)(randomStock + i), 4);
+  }
+  
+  // Restore settings.
+  subghz_set_standby_mode(SUBGHZ_STDBY_HSE32);
+  subghz_write_reg(REG_ANA_LNA, regAnaLna);
+  subghz_write_reg(REG_ANA_MIXER, regAnaMixer);
+}
