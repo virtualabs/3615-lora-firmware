@@ -782,22 +782,22 @@ void subghz_fill_random(uint8_t *randomStock, uint8_t len) {
   uint8_t regAnaLna = 0, regAnaMixer = 0;
 
   // Save original settings first, to restore them later...
-  Radio.Standby();
-  regAnaLna = Radio.Read(REG_ANA_LNA);
+  subghz_set_standby_mode(SUBGHZ_STDBY_HSE32);
+  subghz_read_reg(REG_ANA_LNA, &regAnaLna);
+  subghz_read_reg(REG_ANA_MIXER, &regAnaMixer);
   // Set radio in continuous reception
-  Radio.Write(REG_ANA_LNA, regAnaLna & ~(1 << 0));
-  regAnaMixer = Radio.Read(REG_ANA_MIXER);
-  Radio.Write(REG_ANA_MIXER, regAnaMixer & ~(1 << 7));
+  subghz_write_reg(REG_ANA_LNA, regAnaLna & ~(1 << 0));
+  subghz_write_reg(REG_ANA_MIXER, regAnaMixer & ~(1 << 7));
   // SX126xSetRx(0xFFFFFF); // Rx Continuous
-  Radio.Rx(0xFFFFFF);
+  subghz_set_rx_mode(0xFFFFFF);
 
   for (uint8_t i = 0; i < len; i += 4) {
     // Read four random bytes and save them in the buffer
-    Radio.ReadBuffer(RANDOM_NUMBER_GENERATORBASEADDR, (uint8_t*)(randomStock + i), 4);
+    subghz_read_regs(RANDOM_NUMBER_GENERATORBASEADDR, (uint8_t*)(randomStock + i), 4);
   }
   
   // Restore settings.
-  Radio.Standby();
-  Radio.Write(REG_ANA_LNA, regAnaLna);
-  Radio.Write(REG_ANA_MIXER, regAnaMixer);
+  subghz_set_standby_mode(SUBGHZ_STDBY_HSE32);
+  subghz_write_reg(REG_ANA_LNA, regAnaLna);
+  subghz_write_reg(REG_ANA_MIXER, regAnaMixer);
 }
