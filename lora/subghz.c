@@ -55,7 +55,7 @@ int subghz_init(void)
 /**
  * @brief Initialize SUBGHZ SPI bus.
  * 
- * @return 0 on success, 1 otherwise.
+ * @retval 0 on success, 1 otherwise.
  **/
 
 int subghz_spi_init(int baudrate_prescaler)
@@ -134,18 +134,17 @@ uint16_t spi_read_byte(void)
 subghz_result_t subghz_read_regs(uint16_t address, uint8_t *p_buffer, uint16_t size)
 {
   subghz_result_t status;
-  uint8_t rxbuf[4], data;
+  uint8_t data;
   int i;
 
   /* Start transaction. */
   spi_start_transaction();
 
-  rxbuf[0] = spi_transmit(SUBGHZ_READ_REGISTER);
-  rxbuf[1] = spi_transmit((address & 0xF00) >> 8);
-  rxbuf[2] = spi_transmit((address & 0x00FF));
+  spi_transmit(SUBGHZ_READ_REGISTER);
+  spi_transmit((address & 0xF00) >> 8);
+  spi_transmit((address & 0x00FF));
   status = spi_read_byte();
-  rxbuf[3] = status;
-
+  
   for (i=0; i<size; i++)
   {
     *(p_buffer++) = spi_read_byte();
@@ -210,13 +209,87 @@ void subghz_write_reg(uint16_t address, uint8_t value)
 
 
 /**
+ * @brief Write TX buffer
+ * 
+ * @param   offset  Offset in the TX exchange memory (circular buffer)
+ * @param   p_data  Pointer to the data to write
+ * @param   length  Number of bytes to write
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_write_buffer(uint8_t offset, uint8_t *p_data, int length)
+{
+  subghz_result_t status = 0;
+  int i;
+
+  spi_start_transaction();
+
+  /* Send command. */
+  status = spi_transmit(SUBGHZ_WRITE_BUFFER);
+
+  /* Send offset. */
+  spi_transmit(offset);
+
+  /* Send buffer. */
+  for (i=0; i<length; i++)
+  {
+    spi_transmit(p_data[i]);
+  }
+
+  spi_end_transaction();
+
+  /* Success. */
+  return status;
+
+}
+
+
+/**
+ * @brief Read RX buffer
+ * 
+ * @param   offset  Offset in the RX exchange memory (circular buffer)
+ * @param   p_data  Pointer to the data to write
+ * @param   length  Number of bytes to write
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_read_buffer(uint8_t offset, uint8_t *p_data, int length)
+{
+  subghz_result_t status = 0;
+  int i;
+
+  spi_start_transaction();
+
+  /* Send command. */
+  spi_transmit(SUBGHZ_READ_BUFFER);
+
+  /* Send offset. */
+  spi_transmit(offset);
+
+  /* Read status. */
+  status = spi_transmit(0);
+
+  /* Read buffer. */
+  for (i=0; i<length; i++)
+  {
+    p_data[i] = spi_transmit(0);
+  }
+
+  spi_end_transaction();
+
+  /* Success. */
+  return status;
+}
+
+
+/**
  * @brief Send a command to the SUBGHZ transceiver.
  * 
  * @param command       Command to send
  * @param p_parameters  Pointer to an array containing the different parameters to pass to
  *                      the command
  * @param params_size   Size of the parameters array (number of parameters)
- * @return HAL status
+ * @retval HAL status
 */
 
 subghz_result_t subghz_write_command(uint8_t command, uint8_t *p_parameters, int params_size)
@@ -243,7 +316,7 @@ subghz_result_t subghz_write_command(uint8_t command, uint8_t *p_parameters, int
 /**
  * @brief Check SUBGHZ device.
  * 
- * @return 0 on success, 1 otherwise.
+ * @retval 0 on success, 1 otherwise.
  **/
 
 int subghz_check_device_ready(void)
@@ -265,6 +338,7 @@ int subghz_wait_on_busy(void)
 /**
  * Retrieve the status of the SubGHz transceiver.
  */
+
 subghz_result_t subghz_get_status(void)
 {
   subghz_result_t result;
@@ -280,10 +354,36 @@ subghz_result_t subghz_get_status(void)
 
 
 /**
+ * @brief Get RX buffer status (payload length and offset)
+ * 
+ * @param   p_rxbuf_status   pointer to a `subghz_rxbuf_status_t` structure that will
+ *                           be filled by this function
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_get_rxbuf_status(subghz_rxbuf_status_t *p_rxbuf_status)
+{
+  subghz_result_t result;
+  uint8_t params[] = {0x00, 0x00, 0x00};
+  
+  /* Send command, receive response in params. */
+  subghz_write_command(SUBGHZ_GET_RX_BUFFER_STATUS, params, 3);
+
+  /* Copy response into structure. */
+  result = params[0];
+  p_rxbuf_status->payload_length = params[1];
+  p_rxbuf_status->buffer_offset = params[2];
+
+  /* Return status. */
+  return result;
+}
+
+
+/**
  * @brief Retrieve the current error byte from transceiver.
  * 
- * @param error: pointer to a uint16_t error code.
- * @return current status
+ * @param  error pointer to a uint16_t error code.
+ * @retval current status
  */
 
 subghz_result_t subghz_get_error(subghz_err_t *error)
@@ -304,7 +404,7 @@ subghz_result_t subghz_get_error(subghz_err_t *error)
  * 
  * @param   trim    trimming value
  * @param   timeout timeout in ms after which the oscillator should be considered unstable
- * @return  status
+ * @retval  status
  */
 subghz_result_t subghz_set_tcxo_mode(subghz_tcxo_trim_t trim, uint32_t timeout)
 {
@@ -327,7 +427,7 @@ subghz_result_t subghz_set_tcxo_mode(subghz_tcxo_trim_t trim, uint32_t timeout)
  * @brief Calibrate oscillators and PLLs
  * 
  * @param   calib_cfg  Calibration configuration byte 
- * @return  status
+ * @retval  status
  */
 
 subghz_result_t subghz_calibrate(uint8_t calib_cfg)
@@ -343,10 +443,29 @@ subghz_result_t subghz_calibrate(uint8_t calib_cfg)
 
 
 /**
+ * @brief Set sleep mode
+ * 
+ * @param   sleep_cfg   Sleep mode configuration bits
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_set_sleep(uint8_t sleep_cfg)
+{
+  subghz_result_t status = 0;
+  uint8_t params[] = {sleep_cfg};
+
+  status = subghz_write_command(SUBGHZ_SET_SLEEP, params, 1);
+
+  /* Success. */
+  return status;
+}
+
+
+/**
  * @brief Put transceiver in standby mode
  * 
  * @param mode specify the oscillator to use in standby mode (RC 13MHz or HSE32)
- * @return HAL status
+ * @retval HAL status
  */
 
 subghz_result_t subghz_set_standby_mode(subghz_standby_mode_t mode)
@@ -382,7 +501,7 @@ subghz_result_t subghz_set_regulator_mode(subghz_regulator_mode_t mode)
 /**
  * @brief Set transceiver in FS mode
  * 
- * @return HAL status
+ * @retval HAL status
  */
 
 subghz_result_t subghz_set_fs_mode(void)
@@ -394,7 +513,7 @@ subghz_result_t subghz_set_fs_mode(void)
  * @brief Set transceiver in TX mode
  * 
  * @param   timeout     TX Timeout 
- * @return  HAL status
+ * @retval  HAL status
  */
 
 subghz_result_t subghz_set_tx_mode(uint32_t timeout)
@@ -413,7 +532,7 @@ subghz_result_t subghz_set_tx_mode(uint32_t timeout)
  * @brief Set transceiver in RX mode
  * 
  * @param   timeout     RX Timeout 
- * @return  HAL status
+ * @retval  HAL status
  */
 
 subghz_result_t subghz_set_rx_mode(uint32_t timeout)
@@ -432,7 +551,7 @@ subghz_result_t subghz_set_rx_mode(uint32_t timeout)
  * @brief Set stop RX timer on preamble
  * 
  * @param   config  RX timer stop condition 
- * @return  HAL status
+ * @retval  HAL status
  */
 
 subghz_result_t subghz_set_stop_rxtimer_on_preamble(subghz_rxtimer_stop_t config)
@@ -448,7 +567,7 @@ subghz_result_t subghz_set_stop_rxtimer_on_preamble(subghz_rxtimer_stop_t config
  * 
  * @param   rx_period    RX period 
  * @param   sleep_period Sleep period
- * @return  HAL status
+ * @retval  HAL status
 */
 
 subghz_result_t subghz_set_duty_cycle(uint32_t rx_period, uint32_t sleep_period)
@@ -469,7 +588,7 @@ subghz_result_t subghz_set_duty_cycle(uint32_t rx_period, uint32_t sleep_period)
 /**
  * @brief Enable Channel Activity Detection (only in LoRa mode)
  * 
- * @return  HAL status
+ * @retval  HAL status
  */
 
 subghz_result_t subghz_set_cad(void)
@@ -481,7 +600,7 @@ subghz_result_t subghz_set_cad(void)
 /**
  * @brief Set TX in continuous wave mode
  * 
- * @return  HAL status
+ * @retval  HAL status
  */
 
 subghz_result_t subghz_set_tx_continuous_wave(void)
@@ -493,7 +612,7 @@ subghz_result_t subghz_set_tx_continuous_wave(void)
 /**
  * @brief Set TX in continuous preamble mode
  * 
- * @return  HAL status
+ * @retval  HAL status
  */
 
 subghz_result_t subghz_set_tx_continuous_preamble(void)
@@ -506,7 +625,7 @@ subghz_result_t subghz_set_tx_continuous_preamble(void)
  * @brief Set packet type
  * 
  * @param   packet_type   Packet type to set
- * @return  HAL status
+ * @retval  HAL status
  */
 
 subghz_result_t subghz_set_packet_type(subghz_packet_type_t packet_type)
@@ -520,7 +639,7 @@ subghz_result_t subghz_set_packet_type(subghz_packet_type_t packet_type)
  * @brief Get current packet type
  * 
  * @param   p_packet_type   pointer to the current packet type
- * @return  HAL status
+ * @retval  HAL status
  */
 
 subghz_result_t subghz_get_packet_type(subghz_packet_type_t *packet_type)
@@ -541,7 +660,7 @@ subghz_result_t subghz_get_packet_type(subghz_packet_type_t *packet_type)
  * 
  * @param   freq        RF frequency parameter (see section 5.8.4 from RM0453
  *                      for frequency computation)
- * @return  HAL status
+ * @retval  HAL status
  */
 
 subghz_result_t subghz_set_rf_freq(uint32_t freq)
@@ -562,7 +681,7 @@ subghz_result_t subghz_set_rf_freq(uint32_t freq)
  * 
  * @param   power     Set transmit power in DB
  * @param   ramp_time Set PA Ramp-up time
- * @return  HAL status
+ * @retval  HAL status
 */
 
 subghz_result_t subghz_set_tx_params(int8_t power, subghz_txparams_ramptime_t ramp_time)
@@ -601,7 +720,7 @@ subghz_result_t subghz_set_pa_config(uint8_t duty_cycle, uint8_t hp_max, uint8_t
  * @brief   Set TX/RX fallback mode
  * 
  * @param   mode   Mode to enter when a packet is succesfully sent/received
- * @return  HAL status
+ * @retval  HAL status
 */
 
 subghz_result_t subghz_set_tx_rx_fallback_mode(subghz_fallback_mode_t mode)
@@ -620,7 +739,7 @@ subghz_result_t subghz_set_tx_rx_fallback_mode(subghz_fallback_mode_t mode)
  * @param   det_min       Detection min value
  * @param   exit_mode     Exit mode
  * @param   timeout       CAD timeout
- * @return  HAL status
+ * @retval  HAL status
 */
 
 subghz_result_t subghz_set_cad_params(subghz_cad_symbols_t nb_symbols, uint8_t det_peak,
@@ -646,7 +765,7 @@ subghz_result_t subghz_set_cad_params(subghz_cad_symbols_t nb_symbols, uint8_t d
  * 
  * @param   tx_base_addr    TX base address offset relative to SUBGHZ RAM base address
  * @param   rx_base_addr    RX base address offset relative to SUBGHZ RAM base address
- * @return  HAL status
+ * @retval  HAL status
 */
 
 subghz_result_t subghz_set_buffer_base_address(uint8_t tx_base_addr, uint8_t rx_base_addr)
@@ -664,7 +783,7 @@ subghz_result_t subghz_set_buffer_base_address(uint8_t tx_base_addr, uint8_t rx_
  * @param   gaussian    Pulse shape (gaussian filter)
  * @param   bandwidth   RF bandwidth
  * @param   deviation   Frequency deviation
- * @return  HAL status
+ * @retval  HAL status
 */
 
 subghz_result_t subghz_set_fsk_modulation_params(uint32_t bitrate, subghz_fsk_gaussian_t gaussian,
@@ -692,7 +811,7 @@ subghz_result_t subghz_set_fsk_modulation_params(uint32_t bitrate, subghz_fsk_ga
  * @param   bandwidth   RF bandwidth
  * @param   cr          Coding rate
  * @param   ldro        Low data rate optimization
- * @return  HAL status
+ * @retval  HAL status
 */
 
 subghz_result_t subghz_set_lora_modulation_params(subghz_lora_sf_t sf, subghz_lora_bandwidth_t bandwidth,
@@ -703,6 +822,27 @@ subghz_result_t subghz_set_lora_modulation_params(subghz_lora_sf_t sf, subghz_lo
     bandwidth,
     cr,
     ldro
+  };
+
+  return subghz_write_command(SUBGHZ_SET_MOD_PARAMS, params, 4);
+}
+
+
+/**
+ * @brief Set BSPK modulation parameters
+ * 
+ * @param   bitrate Bitrate
+ * @param   gaussian Gaussian filter setting
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_set_bpsk_modulation_params(uint32_t bitrate, subghz_bpsk_gaussian_t gaussian)
+{
+  uint8_t params[] = {
+    (bitrate >> 16) & 0xff,
+    (bitrate >> 8) & 0xff,
+    (bitrate >> 0) & 0xff,
+    gaussian
   };
 
   return subghz_write_command(SUBGHZ_SET_MOD_PARAMS, params, 4);
@@ -751,7 +891,7 @@ subghz_result_t subghz_set_packet_params(uint16_t preamble_length, subghz_det_le
  * @param   payload_length      Length of payload in bytes
  * @param   crc_enabled         CRC enabled if true, disabled otherwise
  * @param   invert_iq           standard IQ setup if false, inverted IQ if true
- * @return  HAL status
+ * @retval  HAL status
 */
 
 subghz_result_t subghz_set_lora_packet_params(uint16_t preamble_length, subghz_lora_packet_hdr_t header_type,
@@ -767,4 +907,440 @@ subghz_result_t subghz_set_lora_packet_params(uint16_t preamble_length, subghz_l
   };
 
   return subghz_write_command(SUBGHZ_SET_PACKET_PARAMS, params, 6);
+}
+
+
+/**
+ * @brief Set BPSK packet parameters (payload length)
+ * 
+ * @param   payload_length maximum length for BSPK payload
+ * @retval  HAL status
+ */
+
+subghz_result_t subghz_set_bpsk_packet_params(uint8_t payload_length)
+{
+  uint8_t params[] = {
+    payload_length
+  };
+
+  return subghz_write_command(SUBGHZ_SET_PACKET_PARAMS, params, 1);
+}
+
+
+/**
+ * @brief Set LoRa symbol timeout
+ * 
+ * Set number of LoRa symbols to be received before starting the reception of a
+ * LoRa packet
+ * 
+ * @param   symb_num  Number of LoRa symbols (0-255)
+ * @retval  HAL status
+ */
+
+subghz_result_t subghz_set_lora_symb_timeout(uint8_t symb_num)
+{
+  uint8_t params[] = {
+    symb_num
+  };
+
+  return subghz_write_command(SUBGHZ_SET_LORA_SYMB_TO, params, 1);
+}
+
+
+/**
+ * @brief Get RX buffer status (payload length and offset)
+ * 
+ * @param   p_rxbuf_status   pointer to a `subghz_rxbuf_status_t` structure that will
+ *                              be filled by this function
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_get_fsk_packet_status(subghz_fsk_packet_status_t *p_packet_status)
+{
+  subghz_result_t result;
+  uint8_t params[] = {0x00, 0x00, 0x00, 0x00};
+  
+  /* Send command, receive response in params. */
+  subghz_write_command(SUBGHZ_GET_PACKET_STATUS, params, 4);
+
+  /* Copy response into structure. */
+  result = params[0];
+  p_packet_status->rx_status = params[1];
+  p_packet_status->rssi_sync = params[2];
+  p_packet_status->rssi_avg = params[3];
+
+  /* Return status. */
+  return result;
+}
+
+
+/**
+ * @brief Get LoRa packet status.
+ * 
+ * @param   p_packet_status  pointer to a `subghz_lora_packet_status_t` structure that will be
+ *                           filled by this function.
+ * @retval  HAL status
+ */
+
+subghz_result_t subghz_get_lora_packet_status(subghz_lora_packet_status_t *p_packet_status)
+{
+  subghz_result_t result;
+  uint8_t params[] = {0x00, 0x00, 0x00, 0x00};
+  
+  /* Send command, receive response in params. */
+  subghz_write_command(SUBGHZ_GET_PACKET_STATUS, params, 4);
+
+  /* Copy response into structure. */
+  result = params[0];
+  p_packet_status->rssi = params[1];
+  p_packet_status->snr = params[2];
+  p_packet_status->signal_rssi = params[3];
+
+  /* Return status. */
+  return result;
+}
+
+
+/**
+ * @brief Get instantaneous RSSI
+ * 
+ * @param   p_rssi_inst pointer to a `uint8_t` that will receive the instantaneous RSSI value
+ * @retval  HAL status
+ */
+
+subghz_result_t subghz_get_rssi_inst(uint8_t *p_rssi_inst)
+{
+  subghz_result_t result;
+  uint8_t params[] = {0x00, 0x00};
+  
+  /* Send command, receive response in params. */
+  subghz_write_command(SUBGHZ_GET_RSSI_INST, params, 2);
+
+  result = params[0];
+  *p_rssi_inst = params[1];
+
+  /* Return status. */
+  return result; 
+}
+
+
+/**
+ * @brief Get FSK status
+ * 
+ * @param   p_fsk_stats pointer to a `subghz_fsk_stats_t` struct that will be filled
+ *                       by this function.
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_get_fsk_stats(subghz_fsk_stats_t *p_fsk_stats)
+{
+  subghz_result_t result;
+  uint8_t params[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+  /* Send command, receive response in params. */
+  subghz_write_command(SUBGHZ_GET_STATS, params, 7);
+
+  /* Extract result and data. */
+  result = params[0];
+  p_fsk_stats->nb_packets_recvd = (params[1] << 8) | params[2];
+  p_fsk_stats->nb_packets_crcerr = (params[3] << 8) | params[4];
+  p_fsk_stats->nb_packets_lenerr = (params[5] << 8) | params[6];
+
+  /* Return status. */
+  return result; 
+}
+
+
+
+/**
+ * @brief Get LoRa status
+ * 
+ * @param   p_lora_stats pointer to a `subghz_lora_stats_t` struct that will be filled
+ *                       by this function.
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_get_lora_stats(subghz_lora_stats_t *p_lora_stats)
+{
+  subghz_result_t result;
+  uint8_t params[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+  /* Send command, receive response in params. */
+  subghz_write_command(SUBGHZ_GET_STATS, params, 7);
+
+  /* Extract result and data. */
+  result = params[0];
+  p_lora_stats->nb_packets_recvd = (params[1] << 8) | params[2];
+  p_lora_stats->nb_packets_crcerr = (params[3] << 8) | params[4];
+  p_lora_stats->nb_packets_headerr = (params[5] << 8) | params[6];
+
+  /* Return status. */
+  return result; 
+}
+
+
+/**
+ * @brief Reset stats counters for FSK & LoRa
+ * 
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_reset_stats(void)
+{
+  uint8_t params[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+  /* Send command. */
+  return subghz_write_command(SUBGHZ_RESET_STATS, params, 6);
+}
+
+
+/**
+ * @brief Configure IRQ sources
+ * 
+ * @param   irq_mask  Global IRQ interrupt mask
+ * @param   irq1_mask IRQ1 interrupt mask
+ * @param   irq2_mask IRQ2 interrupt mask
+ * @param   irq3_mask IRQ3 interrupt mask
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_config_dio_irq(uint16_t irq_mask, uint16_t irq1_mask,
+                                      uint16_t irq2_mask, uint16_t irq3_mask)
+{
+  uint8_t params[] = {
+    (irq_mask >> 8) & 0xff,
+    (irq_mask >> 0) & 0xff,
+    (irq1_mask >> 8) & 0xff,
+    (irq1_mask >> 0) & 0xff,
+    (irq2_mask >> 8) & 0xff,
+    (irq2_mask >> 0) & 0xff,
+    (irq3_mask >> 8) & 0xff,
+    (irq3_mask >> 0) & 0xff
+  };
+
+  /* Send command. */
+  return subghz_write_command(SUBGHZ_CFG_DIO_IRQ, params, 8);
+}
+
+
+/**
+ * @brief Get IRQ status
+ * 
+ * @param   p_irq_status  Pointer to a `subghz_irq_status_t` structure that
+ *                        will be filled by this function.
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_get_irq_status(subghz_irq_status_t *p_irq_status)
+{
+  subghz_result_t result;
+  uint8_t params[] = {0x00, 0x00, 0x00};
+
+  /* Send command. */
+  subghz_write_command(SUBGHZ_GET_IRQ_STATUS, params, 3);
+
+  result = params[0];
+  p_irq_status->word = (params[1] << 8) | params[2];
+
+  /* Return result. */
+  return result;
+}
+
+
+/**
+ * @brief Clear IRQ
+ * 
+ * @param   p_irq_status  Pointer to a `subghz_irq_status_t` structure that
+ *                        will be filled by this function.
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_clear_irq_status(subghz_irq_status_t *p_irq_status)
+{
+  subghz_result_t result;
+  uint8_t params[] = {
+    0x00,
+    (p_irq_status->word >> 8) & 0xff,
+    (p_irq_status->word >> 0) & 0xff,
+  };
+
+  /* Send command. */
+  return subghz_write_command(SUBGHZ_CLR_IRQ_STATUS, params, 3);
+
+  /* Return result. */
+  return result;
+}
+
+
+/*********************************************
+ * SubGHZ Driver API
+ ********************************************/
+
+
+/**
+ * @brief Set TX payload
+ * 
+ * @param   payload   Pointer to the payload to send
+ * @param   size      Payload size
+ * @retval  HAL status
+*/
+
+subghz_result_t subghz_set_payload(uint8_t *payload, uint8_t size)
+{
+  /* Use offset 0 by default. */
+  subghz_write_buffer(0x00, payload, size);
+}
+
+
+/********************************************
+ * LoRa TX Test
+ *******************************************/
+
+void test_lora_tx(void)
+{
+  uint32_t chan = 0;
+  uint8_t payload[] = "Hello world !";
+
+  #define RF_SW_CTRL1_PIN                          GPIO4
+  #define RF_SW_CTRL1_GPIO_PORT                    GPIOA
+  #define RF_SW_CTRL2_PIN                          GPIO5
+  #define RF_SW_CTRL2_GPIO_PORT                    GPIOA
+
+  printf("Sending LoRa frame:\r\n");
+  
+  /* Tx procedure */
+  if (SUBGHZ_CMD_FAILED(subghz_set_buffer_base_address(0, 0)))
+  {
+    printf("Cannot set buffer base address\r\n");
+    return;
+  }
+  else
+  {
+    printf("Buffer base address set.\r\n");
+  }
+  
+  if (SUBGHZ_CMD_FAILED(subghz_set_payload(payload, 13)))
+  {
+    printf("Cannot set payload\r\n");
+    return;  
+  }
+  else
+  {
+    printf("Payload set.\r\n");
+  }
+
+  if (SUBGHZ_CMD_FAILED(subghz_set_packet_type(SUBGHZ_PACKET_LORA)))
+  {
+    printf("Cannot set packet type\r\n");
+    return;
+  }
+  else
+  {
+    printf("Packet type set.\r\n");
+  }
+
+  if(SUBGHZ_CMD_FAILED(subghz_set_lora_packet_params(12, SUBGHZ_PKT_FIXED_LENGTH, 13, false, false)))
+  {
+    printf("Cannot set LoRa packet params\r\n");
+    return;
+  }
+  else
+  {
+    printf("LoRa packet params set.\r\n");
+  }
+
+  subghz_write_reg(SUBGHZ_GSYNCR0, 0x12);
+  subghz_write_reg(SUBGHZ_GSYNCR1, 0x34);
+  subghz_write_reg(SUBGHZ_GSYNCR2, 0x56);
+  subghz_write_reg(SUBGHZ_GSYNCR3, 0x78);
+
+  SX_FREQ_TO_CHANNEL(chan, 865200000);
+  if(SUBGHZ_CMD_FAILED(subghz_set_rf_freq(chan)))
+  {
+    printf("Cannot set RF freq\r\n");
+    return;
+  }
+  else
+  {
+    printf("RF freq set.\r\n");
+  }
+
+  if(SUBGHZ_CMD_FAILED(subghz_set_pa_config(6, 0, 1)))
+  {
+    printf("Cannot set RF PA config\r\n");
+    return;
+  }
+  else
+  {
+    printf("PA config set.\r\n");
+  }
+
+  if(SUBGHZ_CMD_FAILED(subghz_set_tx_params(0x0E, SUBGHZ_TXPARAMS_RAMPTIME_200US)))
+  {
+    printf("Cannot set TX params\r\n");
+    return;
+  }
+  else
+  {
+    printf("TX params set.\r\n");
+  }
+
+  if(SUBGHZ_CMD_FAILED(subghz_set_lora_modulation_params(SUBGHZ_LORA_SF5, SUBGHZ_LORA_BW250,
+                                    SUBGHZ_LORA_CR_48, SUBGHZ_LORA_LDRO_DISABLED)))
+  {
+    printf("Cannot set LoRa modulation params\r\n");
+    return;
+  }
+  else
+  {
+    printf("LoRa modulation params set.\r\n");
+  }
+
+  if(SUBGHZ_CMD_FAILED(subghz_config_dio_irq(IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT,
+                        IRQ_RADIO_NONE, IRQ_RADIO_NONE)))
+  {
+    printf("Cannot set DIO IRQ\r\n");
+    return;    
+  }
+  else
+  {
+    printf("DIO IRQ set.\r\n");
+  }
+  
+  /* TX mode, low power */
+	gpio_mode_setup(RF_SW_CTRL1_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL1_PIN);
+  gpio_mode_setup(RF_SW_CTRL2_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL2_PIN);
+  gpio_set(RF_SW_CTRL1_GPIO_PORT, RF_SW_CTRL1_PIN);
+  gpio_set(RF_SW_CTRL2_GPIO_PORT, RF_SW_CTRL2_PIN);
+
+  /* Set TX */
+  if(SUBGHZ_CMD_FAILED(subghz_set_tx_mode(0)))
+  {
+    printf("Cannot set TX mode\n");
+    return;
+  }
+  else
+  {
+    printf("TX mode set.\r\n");
+  }
+}
+
+
+/*********************************************
+ * RADIO IRQ Handling
+ ********************************************/
+
+void radio_isr(void)
+{
+  subghz_irq_status_t irq_status;
+
+  /* Get IRQ status */
+  subghz_get_irq_status(&irq_status);
+
+  if (irq_status.bits.tx_done)
+  {
+    printf("TX done!\r\n");
+    subghz_clear_irq_status((1 << 0));
+    subghz_set_sleep(4);
+  }
 }

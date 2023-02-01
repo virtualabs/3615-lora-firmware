@@ -257,12 +257,6 @@ int main(void)
 
   subghz_set_standby_mode(SUBGHZ_STDBY_HSE32);
 
-  subghz_read_reg(SUBGHZ_GPKTCTL1AR, &reg);
-  print_reg_hex("GPKTCTL1AR", reg);
-
-  status = subghz_get_error(&error);
-  print_reg16_hex("error", error);
-
   status = subghz_get_status();
   print_reg16_hex("status mode", SUBGHZ_STATUS_MODE(status));
 
@@ -299,6 +293,8 @@ int main(void)
 	/* red led for buttons */
 	gpio_mode_setup(LED_RED_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, LED_RED_PIN);
   gpio_set(LED_RED_PORT, LED_RED_PIN);
+
+  test_lora_tx();
 
 	while (1) {
     //gpio_toggle(LED_RED_PORT, LED_RED_PIN);

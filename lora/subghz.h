@@ -2,6 +2,7 @@
 #define __INC_SUBGHZ_H
 
 #include <libopencm3/stm32/spi.h>
+#include <libopencm3/stm32/gpio.h>
 
 #define SUBGHZ_DEFAULT_TIMEOUT    100U /* SUBGHZ default timeout: 100ms */
 #define SUBGHZ_RFBUSY_LOOP_TIME   ((rcc_ahb_frequency*24U)>>20U)
@@ -113,6 +114,13 @@
                                     SUBGHZ_CALIB_RFPLL | SUBGHZ_CALIB_RFADC_PULSE | \
                                     SUBGHZ_CALIB_RFADCN | SUBGHZ_CALIB_RFADCP | \
                                     SUBGHZ_CALIB_IMAGE)
+
+#define XTAL_FREQ                   ( 32000000UL )
+#define SX_FREQ_TO_CHANNEL( channel, freq )                                  \
+do                                                                           \
+{                                                                            \
+  channel = (uint32_t) ((((uint64_t) freq)<<25)/(XTAL_FREQ) );               \
+}while( 0 )
 
 /*** Enums ***/
 
@@ -244,6 +252,11 @@ typedef enum {
   SUBGHZ_FSK_BW4,   /* 0x1F */
 } subghz_fsk_bandwidth_t;
 
+/* BPSK gaussian filter. */
+typedef enum {
+  SUBGHZ_BPSK_GAUSSIAN_BT_05 = 0x16
+} subghz_bpsk_gaussian_t;
+
 /* LoRa modulation parameters */
 typedef enum {
   SUBGHZ_LORA_SF5 = 5,
@@ -316,6 +329,89 @@ typedef enum {
   SUBGHZ_PKT_LORA_FIXED_LENGTH
 } subghz_lora_packet_hdr_t;
 
+/* Rx Buffer status. */
+typedef struct {
+  uint8_t payload_length;
+  uint8_t buffer_offset;
+} subghz_rxbuf_status_t;
+
+/* FSK RX buffer status. */
+typedef struct {
+  union {
+    struct {
+      bool packet_sent: 1;
+      bool packet_recvd: 1;
+      bool abort_err: 1;
+      bool length_err: 1;
+      bool crc_err: 1;
+      bool address_err: 1;
+      bool sync_err: 1;
+      bool preamble_err: 1;
+    } bits;
+    uint8_t rx_status;
+  };
+  uint8_t rssi_sync;
+  uint8_t rssi_avg;
+} subghz_fsk_packet_status_t;
+
+/* LoRa Packet status. */
+typedef struct {
+  uint8_t rssi;
+  uint8_t snr;
+  uint8_t signal_rssi;
+} subghz_lora_packet_status_t;
+
+/* FSK Stats. */
+typedef struct {
+  uint16_t nb_packets_recvd;
+  uint16_t nb_packets_crcerr;
+  uint16_t nb_packets_lenerr;
+} subghz_fsk_stats_t;
+
+/* LoRa Stats. */
+typedef struct {
+  uint16_t nb_packets_recvd;
+  uint16_t nb_packets_crcerr;
+  uint16_t nb_packets_headerr;
+} subghz_lora_stats_t;
+
+/* IRQ status. */
+typedef struct {
+  union {
+    struct {
+      bool tx_done: 1;
+      bool rx_done: 1;
+      bool preamble: 1;
+      bool sync: 1;
+      bool header_valid: 1;
+      bool header_err: 1;
+      bool crc_err: 1;
+      bool cad_done: 1;
+
+      bool cad_detected: 1;
+      bool timeout: 1;
+      uint8_t _res: 6;
+    } bits;
+    uint16_t word;
+  };
+} subghz_irq_status_t;
+
+typedef enum
+{
+    IRQ_RADIO_NONE                          = 0x0000,
+    IRQ_TX_DONE                             = 0x0001,
+    IRQ_RX_DONE                             = 0x0002,
+    IRQ_PREAMBLE_DETECTED                   = 0x0004,
+    IRQ_SYNCWORD_VALID                      = 0x0008,
+    IRQ_HEADER_VALID                        = 0x0010,
+    IRQ_HEADER_ERROR                        = 0x0020,
+    IRQ_CRC_ERROR                           = 0x0040,
+    IRQ_CAD_CLEAR                           = 0x0080,
+    IRQ_CAD_DETECTED                        = 0x0100,
+    IRQ_RX_TX_TIMEOUT                       = 0x0200,
+    IRQ_RADIO_ALL                           = 0xFFFF,
+}RadioIrqMasks_t;
+
 /* SUBGHZSPI HAL */
 int subghz_init(void);
 int subghz_check_device_ready(void);
@@ -325,6 +421,8 @@ void subghz_write_reg(uint16_t address, uint8_t value);
 subghz_result_t subghz_read_regs(uint16_t address, uint8_t *p_buffer, uint16_t size);
 subghz_result_t subghz_write_regs(uint16_t address, uint8_t *p_buffer, uint16_t size);
 subghz_result_t subghz_write_command(uint8_t command, uint8_t *p_parameters, int params_size);
+subghz_result_t subghz_write_buffer(uint8_t offset, uint8_t *p_data, int length);
+subghz_result_t subghz_read_buffer(uint8_t offset, uint8_t *p_data, int length);
 
 /* SUBGHZ Commands API */
 subghz_result_t subghz_get_status(void);
@@ -355,10 +453,26 @@ subghz_result_t subghz_set_fsk_modulation_params(uint32_t bitrate, subghz_fsk_ga
                                                  subghz_fsk_bandwidth_t bandwidth, uint32_t deviation);
 subghz_result_t subghz_set_lora_modulation_params(subghz_lora_sf_t sf, subghz_lora_bandwidth_t bandwidth,
                                                   subghz_lora_cr_t cr, subghz_lora_ldro_t ldro);
+subghz_result_t subghz_set_bpsk_modulation_params(uint32_t bitrate, subghz_bpsk_gaussian_t gaussian);
 subghz_result_t subghz_set_packet_params(uint16_t preamble_length, subghz_det_length_t det_length,
                                          uint8_t syncword_length, subghz_addr_comp_t addr_comp,
                                          subghz_packet_length_t packet_length, uint8_t payload_length,
                                          subghz_packet_crc_t crc_type, bool whitening);
 subghz_result_t subghz_set_lora_packet_params(uint16_t preamble_length, subghz_lora_packet_hdr_t header_type,
                                               uint8_t payload_length, bool crc_enabled, bool invert_iq);
+subghz_result_t subghz_set_bpsk_packet_params(uint8_t payload_length);
+subghz_result_t subghz_set_lora_symb_timeout(uint8_t symb_num);
+subghz_result_t subghz_get_fsk_packet_status(subghz_fsk_packet_status_t *p_packet_status);
+subghz_result_t subghz_get_lora_packet_status(subghz_lora_packet_status_t *p_packet_status);
+subghz_result_t subghz_get_rssi_inst(uint8_t *p_rssi_inst);
+subghz_result_t subghz_get_fsk_stats(subghz_fsk_stats_t *p_fsk_stats);
+subghz_result_t subghz_get_lora_stats(subghz_lora_stats_t *p_lora_stats);
+subghz_result_t subghz_reset_stats(void);
+subghz_result_t subghz_config_dio_irq(uint16_t irq_mask, uint16_t irq1_mask,
+                                      uint16_t irq2_mask, uint16_t irq3_mask);
+subghz_result_t subghz_clear_irq(subghz_irq_status_t *p_irq_status);
+
+
+
+
 #endif /* __INC_SUBGHZ_H */
