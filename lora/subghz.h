@@ -11,6 +11,12 @@
 #define SUBGHZ_RADIO_WRITE_REGISTER  0x0D
 
 /* Registers */
+#define SUBGHZ_RAMPUPH               0x0F0
+#define SUBGHZ_RAMPUPL               0x0F1
+#define SUBGHZ_RAMPDNH               0x0F2
+#define SUBGHZ_RAMPDNL               0x0F3
+#define SUBGHZ_FRAMELIMH             0x0F4
+#define SUBGHZ_FRAMELIML             0x0F5
 #define SUBGHZ_GBSYNCR               0x6AC
 #define SUBGHZ_GPKTCTL1AR            0x6B8
 #define SUBGHZ_GWHITEINIRL           0x6B9
@@ -109,11 +115,15 @@
 #define SUBGHZ_CALIB_RFADC_PULSE    (1 << 3)
 #define SUBGHZ_CALIB_RFADCN         (1 << 4)
 #define SUBGHZ_CALIB_RFADCP         (1 << 5)
+#define SUBGHZ_CALIB_RFADCN         (1 << 4)
 #define SUBGHZ_CALIB_IMAGE          (1 << 6)
 #define SUBGHZ_CALIB_ALL            (SUBGHZ_CALIB_RC64K | SUBGHZ_CALIB_RC13M | \
                                     SUBGHZ_CALIB_RFPLL | SUBGHZ_CALIB_RFADC_PULSE | \
                                     SUBGHZ_CALIB_RFADCN | SUBGHZ_CALIB_RFADCP | \
                                     SUBGHZ_CALIB_IMAGE)
+
+#define SUBGHZ_DEFAULT_CURMAX_LP    0x18
+#define SUBGHZ_DEFAULT_CURMAX_HP    0x38
 
 #define XTAL_FREQ                   ( 32000000UL )
 #define SX_FREQ_TO_CHANNEL( channel, freq )                                  \
@@ -121,6 +131,9 @@ do                                                                           \
 {                                                                            \
   channel = (uint32_t) ((((uint64_t) freq)<<25)/(XTAL_FREQ) );               \
 }while( 0 )
+
+#define SUBGHZ_SUCCESS              0
+#define SUBGHZ_ERROR                -1
 
 /*** Enums ***/
 
@@ -410,14 +423,77 @@ typedef enum
     IRQ_CAD_DETECTED                        = 0x0100,
     IRQ_RX_TX_TIMEOUT                       = 0x0200,
     IRQ_RADIO_ALL                           = 0xFFFF,
-}RadioIrqMasks_t;
+} RadioIrqMasks_t;
+
+
+/*******************************************
+ * SubGHZ driver configuration.
+ ******************************************/
+
+typedef enum {
+    SUBGHZ_PA_PWR_10DBM,
+    SUBGHZ_PA_PWR_14DBM,
+    SUBGHZ_PA_PWR_15DBM,
+    SUBGHZ_PA_PWR_17DBM,
+    SUBGHZ_PA_PWR_20DBM,
+    SUBGHZ_PA_PWR_22DBM,
+    SUBGHZ_PA_PWR_COUNT
+} subghz_pa_pwr_t;
+
+typedef enum {
+    SUBGHZ_PA_MODE_LP,
+    SUBGHZ_PA_MODE_HP,
+    SUBGHZ_PA_MODE_COUNT
+} subghz_pa_mode_t;
+
+typedef enum {
+  SUBGHZ_MODE_UNDEF,
+  SUBGHZ_MODE_LORA,
+  SUBGHZ_MODE_FSK,
+  SUBGHZ_MODE_BPSK,
+  SUBGHZ_MODE_MSK
+} subghz_mode_t;
+
+typedef struct {
+  /* Frequency. */
+  uint32_t freq;
+
+  /* Modulation parameters. */
+  subghz_lora_bandwidth_t bw;
+  subghz_lora_cr_t cr;
+  subghz_lora_sf_t sf;
+  subghz_lora_ldro_t ldro;
+
+  /* Packet configuration. */
+  subghz_lora_packet_hdr_t header_type;
+  uint8_t preamble_length;
+  uint8_t payload_length;
+  bool crc_enabled;
+  bool invert_iq;
+} subghz_lora_config_t;
+
+typedef struct {
+  /* Selected mode. */
+  subghz_mode_t current_mode;
+
+  /* Frequency setting. */
+  uint32_t current_freq;
+  uint32_t current_channel;
+
+  /* Tx settings. */
+  subghz_txparams_ramptime_t ramp_time;
+
+  /* LoRa modulation parameters. */
+  subghz_lora_config_t lora_params;
+
+} subghz_t;
 
 /* SUBGHZSPI HAL */
 int subghz_init(void);
 int subghz_check_device_ready(void);
 int subghz_wait_on_busy(void);
 subghz_result_t subghz_read_reg(uint16_t address, uint8_t *p_reg);
-void subghz_write_reg(uint16_t address, uint8_t value);
+subghz_result_t subghz_write_reg(uint16_t address, uint8_t value);
 subghz_result_t subghz_read_regs(uint16_t address, uint8_t *p_buffer, uint16_t size);
 subghz_result_t subghz_write_regs(uint16_t address, uint8_t *p_buffer, uint16_t size);
 subghz_result_t subghz_write_command(uint8_t command, uint8_t *p_parameters, int params_size);
@@ -472,7 +548,8 @@ subghz_result_t subghz_config_dio_irq(uint16_t irq_mask, uint16_t irq1_mask,
                                       uint16_t irq2_mask, uint16_t irq3_mask);
 subghz_result_t subghz_clear_irq(subghz_irq_status_t *p_irq_status);
 
-
+void test_lora_tx(void);
+void test_lora_rx(void);
 
 
 #endif /* __INC_SUBGHZ_H */
