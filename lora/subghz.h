@@ -338,8 +338,8 @@ typedef enum {
 
 /* LoRa packet parameters */
 typedef enum {
-  SUBGHZ_PKT_LORA_VAR_LENGTH,
-  SUBGHZ_PKT_LORA_FIXED_LENGTH
+  SUBGHZ_PKT_LORA_FIXED_LENGTH,
+  SUBGHZ_PKT_LORA_VAR_LENGTH
 } subghz_lora_packet_hdr_t;
 
 /* Rx Buffer status. */
@@ -447,6 +447,16 @@ typedef enum {
 } subghz_pa_mode_t;
 
 typedef enum {
+  SUBGHZ_STATE_STARTUP,
+  SUBGHZ_STATE_SLEEP,
+  SUBGHZ_STATE_CALIB,
+  SUBGHZ_STATE_STDBY,
+  SUBGHZ_STATE_FS,
+  SUBGHZ_STATE_TX,
+  SUBGHZ_STATE_RX
+} subghz_state_t;
+
+typedef enum {
   SUBGHZ_MODE_UNDEF,
   SUBGHZ_MODE_LORA,
   SUBGHZ_MODE_FSK,
@@ -470,11 +480,30 @@ typedef struct {
   uint8_t payload_length;
   bool crc_enabled;
   bool invert_iq;
+
+  /* PA configuration. */
+  subghz_pa_mode_t pa_mode;
+  subghz_pa_pwr_t pa_power;
 } subghz_lora_config_t;
+
+/* Callback types. */
+typedef void (*F_on_packet_sent)(void);
+typedef void (*F_on_packet_recvd)(uint8_t offset, uint8_t length);
+typedef void (*F_on_timeout)(void);
+typedef void (*F_on_rf_switch)(bool tx);
+
+/* Callback structure. */
+typedef struct {
+  F_on_packet_sent pfn_on_packet_sent;
+  F_on_packet_recvd pfn_on_packet_recvd;
+  F_on_timeout pfn_on_timeout;
+  F_on_rf_switch pfn_on_rf_switch;
+} subghz_callbacks_t;
 
 typedef struct {
   /* Selected mode. */
   subghz_mode_t current_mode;
+  subghz_state_t current_state;
 
   /* Frequency setting. */
   uint32_t current_freq;
@@ -486,10 +515,12 @@ typedef struct {
   /* LoRa modulation parameters. */
   subghz_lora_config_t lora_params;
 
+  /* Callbacks*/
+  subghz_callbacks_t callbacks;
+
 } subghz_t;
 
 /* SUBGHZSPI HAL */
-int subghz_init(void);
 int subghz_check_device_ready(void);
 int subghz_wait_on_busy(void);
 subghz_result_t subghz_read_reg(uint16_t address, uint8_t *p_reg);
@@ -547,6 +578,13 @@ subghz_result_t subghz_reset_stats(void);
 subghz_result_t subghz_config_dio_irq(uint16_t irq_mask, uint16_t irq1_mask,
                                       uint16_t irq2_mask, uint16_t irq3_mask);
 subghz_result_t subghz_clear_irq(subghz_irq_status_t *p_irq_status);
+subghz_result_t subghz_set_payload(uint8_t *payload, uint8_t size);
+
+/* SubGHZ API. */
+int subghz_init(void);
+int subghz_lora_mode(subghz_lora_config_t *p_lora_config);
+int subghz_config_pa(subghz_pa_mode_t mode, subghz_pa_pwr_t power);
+void subghz_set_callbacks(const subghz_callbacks_t *callbacks);
 
 void test_lora_tx(void);
 void test_lora_rx(void);

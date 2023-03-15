@@ -24,12 +24,23 @@ subghz_t g_subghz_state;
 int subghz_spi_init(int baudrate_prescaler);
 int subghz_wait_on_busy(void);
 
+/* Default callbacks */
+void subghz_on_packet_sent_def_cb(void);
+void subghz_on_packet_recvd_def_cb(uint8_t offset, uint8_t length);
+void subghz_on_timeout_def_cb(void);
+void subghz_on_rf_switch_def_cb(bool tx);
+
 int subghz_init(void)
 {
   /* Initialize subghz_t structure. */
   memset(&g_subghz_state, 0, sizeof(subghz_t));
-  g_subghz_state.current_mode = SUBGHZ_MODE_UNDEF;
-  g_subghz_state.ramp_time = SUBGHZ_TXPARAMS_RAMPTIME_40US;
+  g_subghz_state.current_mode = SUBGHZ_MODE_UNDEF;          /* Set current mode to undefined. */
+  g_subghz_state.current_state = SUBGHZ_STATE_STARTUP;      /* Current state: startup. */
+  g_subghz_state.ramp_time = SUBGHZ_TXPARAMS_RAMPTIME_40US; /* Default ramp time of 40us. */
+  g_subghz_state.callbacks.pfn_on_packet_recvd = subghz_on_packet_recvd_def_cb;
+  g_subghz_state.callbacks.pfn_on_packet_sent = subghz_on_packet_sent_def_cb;
+  g_subghz_state.callbacks.pfn_on_rf_switch = subghz_on_rf_switch_def_cb;
+  g_subghz_state.callbacks.pfn_on_timeout = subghz_on_timeout_def_cb;
 
   /* Enable SUBGHZSPI clock. */
   rcc_periph_clock_enable(RCC_SUBGHZ);
@@ -465,6 +476,10 @@ subghz_result_t subghz_set_sleep(uint8_t sleep_cfg)
   uint8_t params[] = {sleep_cfg};
 
   status = subghz_write_command(SUBGHZ_SET_SLEEP, params, 1);
+  if (SUBGHZ_CMD_SUCCESS(status))
+  {
+    g_subghz_state.current_state = SUBGHZ_STATE_SLEEP;
+  }
 
   /* Success. */
   return status;
@@ -484,6 +499,10 @@ subghz_result_t subghz_set_standby_mode(subghz_standby_mode_t mode)
   uint8_t params[] = {mode};
 
   status = subghz_write_command(SUBGHZ_SET_STANDBY, params, 1);
+  if (SUBGHZ_CMD_SUCCESS(status))
+  {
+    g_subghz_state.current_state = SUBGHZ_STATE_STDBY;
+  }
 
   /* Success. */
   return status;
@@ -516,7 +535,15 @@ subghz_result_t subghz_set_regulator_mode(subghz_regulator_mode_t mode)
 
 subghz_result_t subghz_set_fs_mode(void)
 {
-  return subghz_write_command(SUBGHZ_SET_FS, NULL, 0);
+  subghz_result_t result;
+
+  result = subghz_write_command(SUBGHZ_SET_FS, NULL, 0);
+  if (SUBGHZ_CMD_SUCCESS(result))
+  {
+    g_subghz_state.current_state = SUBGHZ_STATE_FS;
+  }
+
+  return result;
 }
 
 /**
@@ -528,13 +555,25 @@ subghz_result_t subghz_set_fs_mode(void)
 
 subghz_result_t subghz_set_tx_mode(uint32_t timeout)
 {
+  subghz_result_t result;
+
   uint8_t params[] = {
     (timeout >> 16) & 0xFF,
     (timeout >> 8) & 0xFF,
     timeout & 0xFF
   };
 
-  return subghz_write_command(SUBGHZ_SET_TX, params, 3);
+  /* Request an RF switch (TX mode). */
+  g_subghz_state.callbacks.pfn_on_rf_switch(true);
+
+  result = subghz_write_command(SUBGHZ_SET_TX, params, 3);
+  if (SUBGHZ_CMD_SUCCESS(result))
+  {
+    /* Update current state. */
+    g_subghz_state.current_state = SUBGHZ_STATE_TX;
+  }
+
+  return result;
 }
 
 
@@ -547,13 +586,24 @@ subghz_result_t subghz_set_tx_mode(uint32_t timeout)
 
 subghz_result_t subghz_set_rx_mode(uint32_t timeout)
 {
+  subghz_result_t result;
+
   uint8_t params[] = {
     (timeout >> 16) & 0xFF,
     (timeout >> 8) & 0xFF,
     timeout & 0xFF
   };
 
-  return subghz_write_command(SUBGHZ_SET_RX, params, 3);
+  /* Request an RF switch (RX mode). */
+  g_subghz_state.callbacks.pfn_on_rf_switch(false);
+
+  result = subghz_write_command(SUBGHZ_SET_RX, params, 3);
+  if (SUBGHZ_CMD_SUCCESS(result))
+  {
+    g_subghz_state.current_state = SUBGHZ_STATE_RX;
+  }
+
+  return result;
 }
 
 
@@ -1216,16 +1266,12 @@ int subghz_lora_mode(subghz_lora_config_t *p_lora_config)
   /* Backup our LoRa parameters. */
   memcpy(&g_subghz_state.lora_params, p_lora_config, sizeof(subghz_lora_config_t));
 
-  /* Set RF frequency. */
-  SX_FREQ_TO_CHANNEL(channel, p_lora_config->freq);
-  if (SUBGHZ_CMD_FAILED(subghz_set_rf_freq(g_subghz_state.current_channel)))
+
+  /* Set packet type to LoRa. */
+  if (SUBGHZ_CMD_FAILED(subghz_set_packet_type(SUBGHZ_PACKET_LORA)))
   {
     return SUBGHZ_ERROR;
   }
-
-  /* Save freq and derivated channel values. */
-  g_subghz_state.current_freq = p_lora_config->freq;
-  g_subghz_state.current_channel = channel;
 
   /* Configure LoRa packet parameters. */
   if(SUBGHZ_CMD_FAILED(subghz_set_lora_packet_params(p_lora_config->preamble_length, p_lora_config->header_type,
@@ -1235,9 +1281,25 @@ int subghz_lora_mode(subghz_lora_config_t *p_lora_config)
     return SUBGHZ_ERROR;
   }
 
+  /* Set RF frequency. */
+  SX_FREQ_TO_CHANNEL(channel, p_lora_config->freq);
+  if (SUBGHZ_CMD_FAILED(subghz_set_rf_freq(channel)))
+  {
+    return SUBGHZ_ERROR;
+  }
+
+  /* Save freq and derivated channel values. */
+  g_subghz_state.current_freq = p_lora_config->freq;
+  g_subghz_state.current_channel = channel;
+
+  if (subghz_config_pa(p_lora_config->pa_mode, p_lora_config->pa_power) == SUBGHZ_ERROR)
+  {
+    return SUBGHZ_ERROR;
+  }
+
   /* Configure transceiver in LoRa mode. */
   if(SUBGHZ_CMD_FAILED(subghz_set_lora_modulation_params(p_lora_config->sf, p_lora_config->bw,
-                       p_lora_config->cr, p_lora_config->ldro)))
+                      p_lora_config->cr, p_lora_config->ldro)))
   {
     return SUBGHZ_ERROR;
   }
@@ -1312,6 +1374,60 @@ int subghz_config_pa(subghz_pa_mode_t mode, subghz_pa_pwr_t power)
     /* Error. */
     return SUBGHZ_ERROR;
   }
+}
+
+
+/**
+ * @brief   Set default subGHz driver callbacks (if defined)
+ * @param   callbacks pointer to a `subghz_callbacks_t` structure defining callbacks.
+ **/
+
+void subghz_set_callbacks(const subghz_callbacks_t *callbacks)
+{
+  /* Update our packet sent callback, if required. */
+  if (callbacks->pfn_on_packet_sent != NULL)
+  {
+    g_subghz_state.callbacks.pfn_on_packet_sent = callbacks->pfn_on_packet_sent;
+  }
+
+  /* Update our packet reception callback, if required. */
+  if (callbacks->pfn_on_packet_recvd != NULL)
+  {
+    g_subghz_state.callbacks.pfn_on_packet_recvd = callbacks->pfn_on_packet_recvd;
+  }
+
+  /* Update our timeout callback, if required. */
+  if (callbacks->pfn_on_timeout != NULL)
+  {
+    g_subghz_state.callbacks.pfn_on_timeout = callbacks->pfn_on_timeout;
+  }
+
+  /* Update our RF switch callback, if required. */
+  if (callbacks->pfn_on_rf_switch != NULL)
+  {
+    g_subghz_state.callbacks.pfn_on_rf_switch = callbacks->pfn_on_rf_switch;
+  }
+}
+
+
+/*******************************************
+ * Default callbacks.
+ ******************************************/
+
+void subghz_on_packet_sent_def_cb(void)
+{
+}
+
+void subghz_on_packet_recvd_def_cb(uint8_t offset, uint8_t length)
+{
+}
+
+void subghz_on_timeout_def_cb(void)
+{
+}
+
+void subghz_on_rf_switch_def_cb(bool tx)
+{
 }
 
 
@@ -1569,50 +1685,52 @@ void radio_isr(void)
   subghz_irq_status_t irq_status;
   subghz_irq_status_t irq_clr;
   subghz_rxbuf_status_t rxbuf_status;
-  uint8_t rx_buffer[256];
+
+  /* Initialize our IRQ clear value. */
+  irq_clr.word = 0;
 
   /* Get IRQ status */
   subghz_get_irq_status(&irq_status);
 
+  /* Handle packet transmission. */
   if (irq_status.bits.tx_done)
   {
-    /* Clear TX_DONE bit. */
-    irq_clr.word = 0;
-    irq_clr.bits.tx_done = 1;
+    /* Notify we received a packet. */
+    g_subghz_state.callbacks.pfn_on_packet_sent();
 
-    printf("TX done!\r\n");
+    /* Clear TX_DONE bit. */
+    irq_clr.bits.tx_done = 1;
     subghz_clear_irq_status(&irq_clr);
+
+    /* Go to sleep mode. */
     subghz_set_sleep(4);
   }
 
+  /* Handle packet reception. */
   if (irq_status.bits.rx_done)
   {
-    printf("RX done!\r\n");
-
-    /* Clear RX_DONE bit. */
-    irq_clr.word = 0;
-    irq_clr.bits.rx_done = 1;
-
-    if(SUBGHZ_CMD_FAILED(subghz_clear_irq_status(&irq_clr)))
-    {
-        printf("Clear RX status failed.\r\n");
-    }
-
     if(SUBGHZ_CMD_SUCCESS(subghz_get_rxbuf_status(&rxbuf_status)))
     {
-        /* Display received packet. */
-        if (rxbuf_status.payload_length < 254)
-        {
-            if (SUBGHZ_CMD_FAILED(subghz_read_buffer(rxbuf_status.buffer_offset, rx_buffer, rxbuf_status.payload_length)))
-            {
-                printf("RX buffer cannot be read\r\n");
-            }
-            else
-            {
-                print_str(rx_buffer, rxbuf_status.payload_length);
-            }
-        }
+      /* Display received packet. */
+      if (rxbuf_status.payload_length < 254)
+      {
+        g_subghz_state.callbacks.pfn_on_packet_recvd(rxbuf_status.buffer_offset, rxbuf_status.payload_length);
+      }
     };
 
+    /* Clear RX_DONE bit. */
+    irq_clr.bits.rx_done = 1;
   }
+
+  /* Handle timeout. */
+  if (irq_status.bits.timeout)
+  {
+    g_subghz_state.callbacks.pfn_on_timeout();
+
+    /* Clear TIMEOUT bit. */
+    irq_clr.bits.timeout = 1;
+  }
+
+  /* Clear IRQ. */
+  subghz_clear_irq_status(&irq_clr);
 }
