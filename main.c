@@ -30,21 +30,24 @@
 #include <libopencm3/cm3/systick.h>
 #include "lora/subghz.h"
 
+#define RF_SW_CTRL1_PIN                          GPIO4
+#define RF_SW_CTRL1_GPIO_PORT                    GPIOA
+#define RF_SW_CTRL2_PIN                          GPIO5
+#define RF_SW_CTRL2_GPIO_PORT                    GPIOA
+
 #define LED_RED_PORT GPIOB
 #define LED_RED_PIN GPIO11
+
+#define HF_PA_CTRL1_PORT GPIOC
+#define HF_PA_CTRL1_PIN  GPIO3
+#define HF_PA_CTRL2_PORT GPIOC
+#define HF_PA_CTRL2_PIN  GPIO4
+#define HF_PA_CTRL3_PORT GPIOC
+#define HF_PA_CTRL3_PIN  GPIO5
 
 #define USART_CONSOLE USART1  /* PB6/7 , af7 */
 
 int _write(int file, char *ptr, int len);
-
-
-static struct state_t state;
-
-struct state_t {
-	bool falling;
-	int last_hold;
-	//int tickcount;
-};
 
 /* Setup APB1 frequency to 24MHz */
 static void clock_setup_bis(void)
@@ -83,6 +86,7 @@ static void clock_setup_bis(void)
 }
 
 
+#if 0
 static void clock_setup(void)
 {
 	/* FIXME - this should eventually become a clock struct helper setup */
@@ -118,6 +122,7 @@ static void clock_setup(void)
 	rcc_apb1_frequency = 48e6;
 	rcc_apb2_frequency = 48e6;
 }
+#endif
 
 static void usart_setup(void)
 {
@@ -170,6 +175,16 @@ int _write(int file, char *ptr, int len)
 	return -1;
 }
 
+void print_str(char *str, int length)
+{
+  int i;
+
+  for (i=0; i<length; i++)
+      usart_send_blocking(USART_CONSOLE, str[i]);  
+  usart_send_blocking(USART_CONSOLE, '\r');
+  usart_send_blocking(USART_CONSOLE, '\n');
+}
+
 void print_reg_hex(char *prefix, uint8_t value)
 {
   int i;
@@ -209,15 +224,35 @@ void print_reg16_hex(char *prefix, uint16_t value)
   usart_send_blocking(USART_CONSOLE, '\n');
 }
 
+void on_rf_switch_cb(bool tx);
+void on_tx_pkt_sent(void);
+void on_rx_pkt_recvd(uint8_t offset, uint8_t length);
+
 int main(void)
 {
-  uint32_t count = 0xffffffff;
-  uint8_t buf[256];
-  uint8_t reg, status;
-  uint16_t error = 0;
-  uint32_t rx_params = 0;
-	int j = 0;
+  uint8_t status;
   subghz_result_t res;
+  subghz_callbacks_t my_callbacks = {
+    .pfn_on_packet_recvd = on_rx_pkt_recvd,
+    .pfn_on_packet_sent = NULL,
+    .pfn_on_rf_switch = on_rf_switch_cb,
+    .pfn_on_timeout = NULL
+  };
+
+  subghz_lora_config_t lora_config = {
+    .sf = SUBGHZ_LORA_SF7,
+    .bw = SUBGHZ_LORA_BW250,
+    .cr = SUBGHZ_LORA_CR_48,
+    .freq = 865200000,
+    .payload_length = 13,
+    .preamble_length = 12,
+    .header_type = SUBGHZ_PKT_FIXED_LENGTH,
+    .crc_enabled = false,
+    .invert_iq = false,
+    .ldro = SUBGHZ_LORA_LDRO_DISABLED,
+    .pa_mode = SUBGHZ_PA_MODE_LP,
+    .pa_power = SUBGHZ_PA_PWR_14DBM
+  };
 	
 
   /* Setup clock & UART */
@@ -292,16 +327,96 @@ int main(void)
 
 	/* red led for buttons */
 	gpio_mode_setup(LED_RED_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, LED_RED_PIN);
-  gpio_set(LED_RED_PORT, LED_RED_PIN);
+    gpio_set(LED_RED_PORT, LED_RED_PIN);
 
-  test_lora_tx();
+    /* Set PC3, PC4 and PC5 to high (default low-power TX mode). */
+	gpio_mode_setup(HF_PA_CTRL1_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, HF_PA_CTRL1_PIN);
+    gpio_set(HF_PA_CTRL1_PORT, HF_PA_CTRL1_PIN);
+	gpio_mode_setup(HF_PA_CTRL2_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, HF_PA_CTRL2_PIN);
+    gpio_set(HF_PA_CTRL2_PORT, HF_PA_CTRL2_PIN);
+	gpio_mode_setup(HF_PA_CTRL3_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, HF_PA_CTRL3_PIN);
+    gpio_set(HF_PA_CTRL3_PORT, HF_PA_CTRL3_PIN);
+
+
+    /* LoRa API test. */
+
+    /* Set our callbacks. */
+    subghz_set_callbacks(&my_callbacks);
+
+    /* Set our payload. */
+    subghz_set_buffer_base_address(0, 0);
+
+    /* Enable LoRa mode. */
+    printf("Enable LoRa mode\n");
+    subghz_lora_mode(&lora_config);
+
+    #if 0
+    subghz_config_dio_irq(IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT,
+                        IRQ_RADIO_NONE, IRQ_RADIO_NONE);
+    #endif
+    subghz_config_dio_irq(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT,
+                        IRQ_RADIO_NONE, IRQ_RADIO_NONE);
+
+    #if 0
+    /* TX mode, low power */
+    printf("Enable TX (RF switch)\n");
+    gpio_mode_setup(RF_SW_CTRL1_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL1_PIN);
+    gpio_mode_setup(RF_SW_CTRL2_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL2_PIN);
+    gpio_set(RF_SW_CTRL1_GPIO_PORT, RF_SW_CTRL1_PIN);
+    gpio_set(RF_SW_CTRL2_GPIO_PORT, RF_SW_CTRL2_PIN);
+    #endif
+
+    /* Set TX mode (start transmission). */
+    //printf("Send payload\n");
+    //subghz_set_tx_mode(0);
+    subghz_set_rx_mode(0xFFFFFF);
+    
+
 
 	while (1) {
     //gpio_toggle(LED_RED_PORT, LED_RED_PIN);
+        
 		for (int i = 0; i < 400000; i++) { /* Wait a bit. */
 			__asm__("NOP");
 		}
 	}
 
 	return 0;
+}
+
+void on_tx_pkt_sent(void)
+{
+    printf("Packet sent\n");
+}
+
+/* handle RF switch config. */
+void on_rf_switch_cb(bool tx)
+{
+    gpio_mode_setup(RF_SW_CTRL1_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL1_PIN);
+    gpio_mode_setup(RF_SW_CTRL2_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL2_PIN);
+    gpio_set(RF_SW_CTRL1_GPIO_PORT, RF_SW_CTRL1_PIN);
+
+    if (tx)
+    {
+        /* TX mode, low power */
+        printf("Enable TX (RF switch)\n");
+        gpio_set(RF_SW_CTRL2_GPIO_PORT, RF_SW_CTRL2_PIN);
+    }
+    else
+    {
+        /* RX mode, low power */
+        printf("Enable RX (RF switch)\n");
+        gpio_clear(RF_SW_CTRL2_GPIO_PORT, RF_SW_CTRL2_PIN);
+    }
+}
+
+void on_rx_pkt_recvd(uint8_t offset, uint8_t length)
+{
+    uint8_t rxbuf[256];
+
+    printf("Packet received !\n");
+    if (SUBGHZ_CMD_SUCCESS(subghz_read_buffer(offset, rxbuf, length)))
+    {
+        print_str((char *)rxbuf, length);
+    }
 }
