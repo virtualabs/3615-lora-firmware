@@ -93,12 +93,11 @@
 /* Constants */
 #define SUBGHZ_STATUS_MODE_MASK      (7 << 4)
 #define SUBGHZ_STATUS_CMD_MASK       (7 << 1)
+#define SUBGHZ_STATUS_CMD_SUCCESS    (6 << 1)
 #define SUBGHZ_STATUS_MODE(x)        ((x & SUBGHZ_STATUS_MODE_MASK) >> 4)
 #define SUBGHZ_STATUS_CMD(x)         ((x & SUBGHZ_STATUS_CMD_MASK) >> 1)
-#define SUBGHZ_CMD_FAILED(x)         ((SUBGHZ_STATUS_CMD(x) == SUBGHZ_STATUS_CMD_TIMEOUT) || \
-                                      (SUBGHZ_STATUS_CMD(x) == SUBGHZ_STATUS_CMD_ERROR) || \
-                                      (SUBGHZ_STATUS_CMD(x) == SUBGHZ_STATUS_CMD_EXEC_FAIL))
-#define SUBGHZ_CMD_SUCCESS(x)        (!(SUBGHZ_CMD_FAILED(x)))
+#define SUBGHZ_CMD_SUCCESS(x)        ((SUBGHZ_STATUS_CMD(x) & 0x03) == 2)
+#define SUBGHZ_CMD_FAILED(x)         (!(SUBGHZ_CMD_SUCCESS(x)))
 
 #define SUBGHZ_ERROR_PARAMP         (1 << 8)
 #define SUBGHZ_ERROR_RFPLL_LOCK     (1 << 6)
@@ -134,6 +133,7 @@ do                                                                           \
 
 #define SUBGHZ_SUCCESS              0
 #define SUBGHZ_ERROR                -1
+#define SUBGHZ_TIMEOUT              -2
 
 /*** Enums ***/
 
@@ -517,7 +517,6 @@ typedef struct {
 
   /* Callbacks*/
   subghz_callbacks_t callbacks;
-
 } subghz_t;
 
 /* SUBGHZSPI HAL */
@@ -585,6 +584,10 @@ int subghz_init(void);
 int subghz_lora_mode(subghz_lora_config_t *p_lora_config);
 int subghz_config_pa(subghz_pa_mode_t mode, subghz_pa_pwr_t power);
 void subghz_set_callbacks(const subghz_callbacks_t *callbacks);
+int subghz_send(uint8_t *p_frame, int length, uint32_t timeout);
+int subghz_send_async(uint8_t *p_frame, int length, uint32_t timeout);
+int subghz_receive(uint8_t *p_frame, uint8_t *p_length, uint32_t timeout);
+int subghz_receive_async(uint32_t timeout);
 
 void test_lora_tx(void);
 void test_lora_rx(void);

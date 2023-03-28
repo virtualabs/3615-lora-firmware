@@ -230,11 +230,13 @@ void on_rx_pkt_recvd(uint8_t offset, uint8_t length);
 
 int main(void)
 {
-  uint8_t status;
-  subghz_result_t res;
+  int res;
+  uint8_t packet[255];
+  uint8_t packet_size = 255;
+
   subghz_callbacks_t my_callbacks = {
     .pfn_on_packet_recvd = on_rx_pkt_recvd,
-    .pfn_on_packet_sent = NULL,
+    .pfn_on_packet_sent = NULL,//on_tx_pkt_sent,
     .pfn_on_rf_switch = on_rf_switch_cb,
     .pfn_on_timeout = NULL
   };
@@ -275,103 +277,60 @@ int main(void)
 
   /* Initialize SUBGHZ. */
   subghz_init();
-	subghz_check_device_ready();
-  pwr_subghzspi_unselect();
-
-  for (int i = 0; i < 40000; i++) { /* Wait a bit. */
-    __asm__("NOP");
-  }
-
-  subghz_set_tcxo_mode(SUBGHZ_TCXO_TRIM_1V7, 10 << 6);
-  res = subghz_calibrate(SUBGHZ_CALIB_ALL);
-  print_reg16_hex("calibrate_res", res);
-  if (SUBGHZ_CMD_SUCCESS(res))
-  {
-    printf("Calibration OK\n");
-  }
-
-  subghz_set_standby_mode(SUBGHZ_STDBY_HSE32);
-
-  status = subghz_get_status();
-  print_reg16_hex("status mode", SUBGHZ_STATUS_MODE(status));
-
-
-#if 0
-  /* Read a register from SUBGHZ. */
-  status = subghz_get_error(&error);
-  print_reg16_hex("error", error);
-  print_reg_hex("status", status);
-
-  /* Clear error. */
-  printf("Clear error\n");
-  reg = 0;
-  subghz_write_command(0x07, (uint8_t *)&reg, 1);
-
-  /* Read a register from SUBGHZ. */
-  status = subghz_get_error(&error);
-  print_reg16_hex("error", error);
-  print_reg_hex("status", status);
-
-  subghz_write_reg(0x6C7, 0x42);
-  status = subghz_read_reg(0x6C7, &reg);
-  //status = subghz_get_status();
-  print_reg_hex("status", status);
-  print_reg_hex("0x6C7", reg);
-
-  gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO5);
-
-	/* red led for buttons */
-	gpio_mode_setup(LED_RED_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE,LED_RED_PIN);
-
-#endif
 
 	/* red led for buttons */
 	gpio_mode_setup(LED_RED_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, LED_RED_PIN);
-    gpio_set(LED_RED_PORT, LED_RED_PIN);
+  gpio_set(LED_RED_PORT, LED_RED_PIN);
 
-    /* Set PC3, PC4 and PC5 to high (default low-power TX mode). */
+  /* Set PC3, PC4 and PC5 to high (default low-power TX mode). */
 	gpio_mode_setup(HF_PA_CTRL1_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, HF_PA_CTRL1_PIN);
-    gpio_set(HF_PA_CTRL1_PORT, HF_PA_CTRL1_PIN);
+  gpio_set(HF_PA_CTRL1_PORT, HF_PA_CTRL1_PIN);
 	gpio_mode_setup(HF_PA_CTRL2_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, HF_PA_CTRL2_PIN);
-    gpio_set(HF_PA_CTRL2_PORT, HF_PA_CTRL2_PIN);
+  gpio_set(HF_PA_CTRL2_PORT, HF_PA_CTRL2_PIN);
 	gpio_mode_setup(HF_PA_CTRL3_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, HF_PA_CTRL3_PIN);
-    gpio_set(HF_PA_CTRL3_PORT, HF_PA_CTRL3_PIN);
+  gpio_set(HF_PA_CTRL3_PORT, HF_PA_CTRL3_PIN);
 
 
-    /* LoRa API test. */
+  /* LoRa API test. */
 
-    /* Set our callbacks. */
-    subghz_set_callbacks(&my_callbacks);
+  /* Set our callbacks. */
+  subghz_set_callbacks(&my_callbacks);
 
-    /* Set our payload. */
-    subghz_set_buffer_base_address(0, 0);
+  /* Set our payload. */
+  subghz_set_buffer_base_address(0, 0);
 
-    /* Enable LoRa mode. */
-    printf("Enable LoRa mode\n");
-    subghz_lora_mode(&lora_config);
+  /* Enable LoRa mode. */
+  printf("Enable LoRa mode\n");
+  subghz_lora_mode(&lora_config);
 
-    #if 0
-    subghz_config_dio_irq(IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT,
-                        IRQ_RADIO_NONE, IRQ_RADIO_NONE);
-    #endif
-    subghz_config_dio_irq(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT,
-                        IRQ_RADIO_NONE, IRQ_RADIO_NONE);
-
-    #if 0
-    /* TX mode, low power */
-    printf("Enable TX (RF switch)\n");
-    gpio_mode_setup(RF_SW_CTRL1_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL1_PIN);
-    gpio_mode_setup(RF_SW_CTRL2_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL2_PIN);
-    gpio_set(RF_SW_CTRL1_GPIO_PORT, RF_SW_CTRL1_PIN);
-    gpio_set(RF_SW_CTRL2_GPIO_PORT, RF_SW_CTRL2_PIN);
-    #endif
-
-    /* Set TX mode (start transmission). */
-    //printf("Send payload\n");
-    //subghz_set_tx_mode(0);
-    subghz_set_rx_mode(0xFFFFFF);
-    
-
+  /* Set TX mode (start transmission). */
+  //printf("Send payload\n");
+  //subghz_set_payload((uint8_t *)"Hello world", 11);
+  //subghz_set_tx_mode(0);
+  //subghz_set_rx_mode(0xFFFFFF);
+  subghz_send((uint8_t *)"Hello world !", 13, 0);
+  printf("Packet sent\r\n");
+  //printf("Packet sent\r\n");
+  //printf("Receiving packet\r\n");
+  #if 0
+  memset(packet, 0, sizeof(packet));
+  res = subghz_receive(packet, &packet_size, 0xFFFFFF);
+  printf("got packet\r\n");
+  if (res == SUBGHZ_SUCCESS)
+  {
+  printf("Received packet:\r\n");
+  print_str((char *)packet, packet_size);
+  }
+  else if (res == SUBGHZ_TIMEOUT)
+  {
+    printf("Reception timed out\r\n");
+  }
+  else
+  {
+    printf("An error occured\r\n");
+  }
+  subghz_receive_async(0xFFFFFF);
+  #endif
 
 	while (1) {
     //gpio_toggle(LED_RED_PORT, LED_RED_PIN);
