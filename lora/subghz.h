@@ -24,14 +24,14 @@
 #define SUBGHZ_GCRCINIRL             0x6BD
 #define SUBGHZ_GCRCPOLRH             0x6BE
 #define SUBGHZ_GCRCPOLRL             0x6BF
-#define SUBGHZ_GSYNCR0               0x6C0
-#define SUBGHZ_GSYNCR1               0x6C1
-#define SUBGHZ_GSYNCR2               0x6C2
-#define SUBGHZ_GSYNCR3               0x6C3
-#define SUBGHZ_GSYNCR4               0x6C4
-#define SUBGHZ_GSYNCR5               0x6C5
-#define SUBGHZ_GSYNCR6               0x6C6
-#define SUBGHZ_GSYNCR7               0x6C7
+#define SUBGHZ_GSYNCR0               0x6C7
+#define SUBGHZ_GSYNCR1               0x6C6
+#define SUBGHZ_GSYNCR2               0x6C5
+#define SUBGHZ_GSYNCR3               0x6C4
+#define SUBGHZ_GSYNCR4               0x6C3
+#define SUBGHZ_GSYNCR5               0x6C2
+#define SUBGHZ_GSYNCR6               0x6C1
+#define SUBGHZ_GSYNCR7               0x6C0
 #define SUBGHZ_LSYNCRH               0x740
 #define SUBGHZ_LSYNCRL               0x741
 #define SUBGHZ_RNGR3                 0x819
@@ -486,6 +486,33 @@ typedef struct {
   subghz_pa_pwr_t pa_power;
 } subghz_lora_config_t;
 
+
+typedef struct {
+  /* Frequency. */
+  uint32_t freq;
+
+  /* Modulation parameters. */
+  uint32_t bit_rate;
+  uint32_t freq_dev;
+  subghz_fsk_gaussian_t pulse_shape;
+  subghz_fsk_bandwidth_t bandwidth;
+
+  /* Packet configuration. */
+  uint8_t sync_word_length;
+  uint8_t sync_word[8];
+  uint16_t preamble_length;
+  subghz_det_length_t preamble_detect;
+  subghz_addr_comp_t addr_comp;
+  subghz_packet_length_t packet_type;
+  uint8_t payload_length;
+  subghz_packet_crc_t crc;
+  bool whitening;
+
+  /* PA configuration. */
+  subghz_pa_mode_t pa_mode;
+  subghz_pa_pwr_t pa_power;
+} subghz_fsk_config_t;
+
 /* Callback types. */
 typedef void (*F_on_packet_sent)(void);
 typedef void (*F_on_packet_recvd)(uint8_t offset, uint8_t length);
@@ -514,6 +541,9 @@ typedef struct {
 
   /* LoRa modulation parameters. */
   subghz_lora_config_t lora_params;
+
+  /* FSK modulation parameters. */
+  subghz_fsk_config_t fsk_params;
 
   /* Callbacks*/
   subghz_callbacks_t callbacks;
@@ -582,6 +612,7 @@ subghz_result_t subghz_set_payload(uint8_t *payload, uint8_t size);
 /* SubGHZ API. */
 int subghz_init(void);
 int subghz_lora_mode(subghz_lora_config_t *p_lora_config);
+int subghz_fsk_mode(subghz_fsk_config_t *p_fsk_config);
 int subghz_config_pa(subghz_pa_mode_t mode, subghz_pa_pwr_t power);
 void subghz_set_callbacks(const subghz_callbacks_t *callbacks);
 int subghz_send(uint8_t *p_frame, int length, uint32_t timeout);

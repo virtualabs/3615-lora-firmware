@@ -215,8 +215,6 @@ subghz_result_t subghz_read_regs(uint16_t address, uint8_t *p_buffer, uint16_t s
  */
 subghz_result_t subghz_write_regs(uint16_t address, uint8_t *p_buffer, uint16_t size)
 {
-  subghz_result_t status;
-
   /* Start SPI transaction. */
   spi_start_transaction();
 
@@ -267,7 +265,6 @@ subghz_result_t subghz_write_reg(uint16_t address, uint8_t value)
 
 subghz_result_t subghz_write_buffer(uint8_t offset, uint8_t *p_data, int length)
 {
-  subghz_result_t status = 0;
   int i;
 
   spi_start_transaction();
@@ -339,12 +336,11 @@ subghz_result_t subghz_read_buffer(uint8_t offset, uint8_t *p_data, int length)
 
 subghz_result_t subghz_write_command(uint8_t command, uint8_t *p_parameters, int params_size)
 {
-  subghz_result_t status = 0;
   int i;
 
   spi_start_transaction();
 
-  status = spi_transmit(command);
+  spi_transmit(command);
   for (i = 0; i < params_size; i++)
   {
     p_parameters[i] = spi_transmit(p_parameters[i]);
@@ -353,7 +349,6 @@ subghz_result_t subghz_write_command(uint8_t command, uint8_t *p_parameters, int
   spi_end_transaction();
 
   /* Success. */
-  //return (status & SUBGHZ_STATUS_MODE_MASK) | (SUBGHZ_STATUS_CMD_SUCCESS);
   return (0x06 << 1);
 }
 
@@ -843,15 +838,19 @@ subghz_result_t subghz_set_buffer_base_address(uint8_t tx_base_addr, uint8_t rx_
 subghz_result_t subghz_set_fsk_modulation_params(uint32_t bitrate, subghz_fsk_gaussian_t gaussian,
                                                  subghz_fsk_bandwidth_t bandwidth, uint32_t deviation)
 {
+  uint32_t channel;
+  uint32_t br = ( uint32_t )(( 32 * XTAL_FREQ ) / bitrate);
+  SX_FREQ_TO_CHANNEL(channel, deviation);
+
   uint8_t params[] = {
-      (bitrate >> 16) & 0xff,
-      (bitrate >> 8) & 0xff,
-      (bitrate >> 0) & 0xff,
+      (br >> 16) & 0xff,
+      (br >> 8) & 0xff,
+      (br >> 0) & 0xff,
       gaussian,
       bandwidth,
-      (deviation >> 16) & 0xff,
-      (deviation >> 8) & 0xff,
-      (deviation >> 0) & 0xff,
+      (channel >> 16) & 0xff,
+      (channel >> 8) & 0xff,
+      (channel >> 0) & 0xff,
   };
 
   return subghz_write_command(SUBGHZ_SET_MOD_PARAMS, params, 8);
@@ -1280,6 +1279,81 @@ int subghz_lora_mode(subghz_lora_config_t *p_lora_config)
   return SUBGHZ_SUCCESS;
 }
 
+
+/**
+ * @brief   Enable FSK mode
+ * @param   p_fsk_config pointer to a `subghz_fsk_config_t` structure
+ * @return  SUBGHZ_SUCCESS on success, SUBGHZ_ERROR on error.
+ */
+
+int subghz_fsk_mode(subghz_fsk_config_t *p_fsk_config)
+{
+  int i, sw_bytes;
+  uint16_t syncword_addr;
+  uint32_t channel;
+
+  /* Switch to FSK mode. */
+  g_subghz_state.current_mode = SUBGHZ_MODE_FSK;
+
+  /* Backup our FSK parameters. */
+  memcpy(&g_subghz_state.fsk_params, p_fsk_config, sizeof(subghz_fsk_config_t));
+
+  /* Set packet type to FSK. */
+  if (SUBGHZ_CMD_FAILED(subghz_set_packet_type(SUBGHZ_PACKET_FSK)))
+  {
+    printf("Set packet type failed\n");
+    return SUBGHZ_ERROR;
+  }
+
+  /* Configure FSK packet parameters. */
+  if (SUBGHZ_CMD_FAILED(subghz_set_packet_params(p_fsk_config->preamble_length, p_fsk_config->preamble_detect,
+                                                 p_fsk_config->sync_word_length*8, p_fsk_config->addr_comp,
+                                                 p_fsk_config->packet_type, p_fsk_config->payload_length,
+                                                 p_fsk_config->crc, p_fsk_config->whitening)))
+  {
+    printf("Set packet params failed\n");
+    return SUBGHZ_ERROR;
+  }
+
+  /* Set Synchronization Word (SYNC_WORD). */
+  if (p_fsk_config->sync_word_length > 0)
+  {
+    syncword_addr=SUBGHZ_GSYNCR0;
+    for (i=0; i<p_fsk_config->sync_word_length; i++)
+    {
+      subghz_write_reg(syncword_addr--, p_fsk_config->sync_word[i]);
+    }
+  }
+
+  /* Set RF frequency. */
+  SX_FREQ_TO_CHANNEL(channel, p_fsk_config->freq);
+  if (SUBGHZ_CMD_FAILED(subghz_set_rf_freq(channel)))
+  {
+    printf("Set RF freq failed\n");
+    return SUBGHZ_ERROR;
+  }
+
+  /* Save freq and derivated channel values. */
+  g_subghz_state.current_freq = p_fsk_config->freq;
+  g_subghz_state.current_channel = channel;
+
+  if (subghz_config_pa(p_fsk_config->pa_mode, p_fsk_config->pa_power) == SUBGHZ_ERROR)
+  {
+    printf("Set PA config failed\n");
+    return SUBGHZ_ERROR;
+  }
+
+  /* Configure transceiver in LoRa mode. */
+  if (SUBGHZ_CMD_FAILED(subghz_set_fsk_modulation_params(p_fsk_config->bit_rate, p_fsk_config->pulse_shape,
+                                                         p_fsk_config->bandwidth, p_fsk_config->freq_dev)))
+  {
+    printf("Set FSK mod params failed\n");
+    return SUBGHZ_ERROR;
+  }
+
+  return SUBGHZ_SUCCESS;
+}
+
 /**
  * @brief   Configure the STM32WLxx Power Amplifier.
  * @param   mode  Power amplifier mode (Low Power / High Power)
@@ -1426,8 +1500,6 @@ int subghz_send(uint8_t *p_frame, int length, uint32_t timeout)
 
 int subghz_receive_async(uint32_t timeout)
 {
-  subghz_result_t res;
-
   /* Configure IRQ flags (no IRQ) */
   if (SUBGHZ_CMD_FAILED(subghz_config_dio_irq(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT,
                                               IRQ_RADIO_NONE, IRQ_RADIO_NONE)))

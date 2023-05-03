@@ -236,7 +236,7 @@ int main(void)
 
   subghz_callbacks_t my_callbacks = {
     .pfn_on_packet_recvd = on_rx_pkt_recvd,
-    .pfn_on_packet_sent = NULL,//on_tx_pkt_sent,
+    .pfn_on_packet_sent = on_tx_pkt_sent,
     .pfn_on_rf_switch = on_rf_switch_cb,
     .pfn_on_timeout = NULL
   };
@@ -252,9 +252,33 @@ int main(void)
     .crc_enabled = false,
     .invert_iq = false,
     .ldro = SUBGHZ_LORA_LDRO_DISABLED,
-    .pa_mode = SUBGHZ_PA_MODE_LP,
+    .pa_mode = SUBGHZ_PA_MODE_HP,
     .pa_power = SUBGHZ_PA_PWR_14DBM
   };
+
+  subghz_fsk_config_t fsk_config = {
+    .freq = 865200000,
+    .freq_dev = 50000,
+    .bandwidth = SUBGHZ_FSK_BW373,
+    .pulse_shape = SUBGHZ_FSK_GAUSSIAN_NONE,
+    .bit_rate = 50000,
+    .preamble_length = 8,
+
+    .packet_type = SUBGHZ_PKT_FIXED_LENGTH,
+    .sync_word_length = 0,
+    .payload_length = 13,
+    
+    .addr_comp = SUBGHZ_ADDR_COMP_DISABLED,
+    .crc = SUBGHZ_PKT_CRC_NONE,
+    .whitening = false,
+
+    .pa_mode = SUBGHZ_PA_MODE_HP,
+    .pa_power = SUBGHZ_PA_PWR_22DBM
+  };
+  fsk_config.sync_word[0] = 0xBA;
+  fsk_config.sync_word[1] = 0xDC;
+  fsk_config.sync_word[2] = 0x0F;
+  fsk_config.sync_word[3] = 0xFE;
 	
 
   /* Setup clock & UART */
@@ -301,15 +325,20 @@ int main(void)
 
   /* Enable LoRa mode. */
   printf("Enable LoRa mode\n");
-  subghz_lora_mode(&lora_config);
+  //subghz_lora_mode(&lora_config);
+  if (subghz_fsk_mode(&fsk_config) == SUBGHZ_ERROR)
+    printf("Config failed\n");
 
   /* Set TX mode (start transmission). */
-  //printf("Send payload\n");
+  printf("Send payload\n");
   //subghz_set_payload((uint8_t *)"Hello world", 11);
   //subghz_set_tx_mode(0);
   //subghz_set_rx_mode(0xFFFFFF);
-  subghz_send((uint8_t *)"Hello world !", 13, 0);
-  printf("Packet sent\r\n");
+  if (subghz_send((uint8_t *)"Hello world !", 13, 0) == SUBGHZ_ERROR)
+    printf("Send failed\n");
+
+  print_reg_hex("status", subghz_get_status());
+  //printf("Packet sent\r\n");
   //printf("Packet sent\r\n");
   //printf("Receiving packet\r\n");
   #if 0
