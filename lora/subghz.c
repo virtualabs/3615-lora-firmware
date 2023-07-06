@@ -35,6 +35,12 @@ void subghz_on_packet_recvd_def_cb(uint8_t offset, uint8_t length);
 void subghz_on_timeout_def_cb(void);
 void subghz_on_rf_switch_def_cb(bool tx);
 
+
+/**
+ * @brief Initialize SubGHZ peripheral.
+ * @retval SUBGHZ_SUCCESS on success, SUBGHZ_ERROR otherwise.
+ */
+
 int subghz_init(void)
 {
   subghz_result_t res;
@@ -128,6 +134,7 @@ int subghz_spi_init(int baudrate_prescaler)
   return 0;
 }
 
+
 /**
  * @brief Start SPI transaction
  *
@@ -143,6 +150,7 @@ void spi_start_transaction(void)
   /* Assert NSS. */
   pwr_subghzspi_select();
 }
+
 
 /**
  * @brief End SPI transaction.
@@ -160,13 +168,26 @@ void spi_end_transaction(void)
   subghz_wait_on_busy();
 }
 
+
+/**
+ * @brief  Transmit a byte over SUBGHZSPI.
+ * @param  data  Byte to transmit
+ * @retval HAL status
+ */
+
 subghz_result_t spi_transmit(uint8_t data)
 {
   spi_send8(SUBGHZSPI_BASE, data);
   return spi_read8(SUBGHZSPI_BASE);
 }
 
-uint16_t spi_read_byte(void)
+
+/**
+ * @brief  Read a byte from SUBGHZSPI.
+ * @retval Byte read.
+ */
+
+uint8_t spi_read_byte(void)
 {
   return spi_transmit(0x42);
 }
@@ -206,6 +227,7 @@ subghz_result_t subghz_read_regs(uint16_t address, uint8_t *p_buffer, uint16_t s
   return status;
 }
 
+
 /**
  * @brief  Write data registers at an address in the peripheral
  * @param  address register to configurate
@@ -213,6 +235,7 @@ subghz_result_t subghz_read_regs(uint16_t address, uint8_t *p_buffer, uint16_t s
  * @param  size    amount of data to be sent
  * @retval HAL status
  */
+
 subghz_result_t subghz_write_regs(uint16_t address, uint8_t *p_buffer, uint16_t size)
 {
   /* Start SPI transaction. */
@@ -234,25 +257,30 @@ subghz_result_t subghz_write_regs(uint16_t address, uint8_t *p_buffer, uint16_t 
   return SUBGHZ_STATUS_CMD_SUCCESS;
 }
 
+
 /**
  * @brief  Read data registers at an address in the peripheral
  * @param  address register to configurate
  * @retval HAL status
  */
+
 subghz_result_t subghz_read_reg(uint16_t address, uint8_t *p_reg)
 {
   return subghz_read_regs(address, p_reg, 1);
 }
+
 
 /**
  * @brief  Write data registers at an address in the peripheral
  * @param  address register to configurate
  * @retval HAL status
  */
+
 subghz_result_t subghz_write_reg(uint16_t address, uint8_t value)
 {
   return subghz_write_regs(address, &value, 1);
 }
+
 
 /**
  * @brief Write TX buffer
@@ -286,6 +314,7 @@ subghz_result_t subghz_write_buffer(uint8_t offset, uint8_t *p_data, int length)
   /* Success. */
   return SUBGHZ_STATUS_CMD_SUCCESS;
 }
+
 
 /**
  * @brief Read RX buffer
@@ -323,6 +352,7 @@ subghz_result_t subghz_read_buffer(uint8_t offset, uint8_t *p_data, int length)
   /* Success. */
   return status;
 }
+
 
 /**
  * @brief Send a command to the SUBGHZ transceiver.
@@ -363,6 +393,12 @@ int subghz_check_device_ready(void)
   return subghz_wait_on_busy();
 }
 
+/**
+ * @brief Wait while device is busy.
+ *
+ * @retval 0
+ **/
+
 int subghz_wait_on_busy(void)
 {
   while (pwr_is_rfbusys() == 1)
@@ -391,6 +427,7 @@ subghz_result_t subghz_get_status(void)
   /* Success. */
   return result;
 }
+
 
 /**
  * @brief Get RX buffer status (payload length and offset)
@@ -436,6 +473,7 @@ subghz_result_t subghz_get_error(subghz_err_t *error)
   return status;
 }
 
+
 /**
  * @brief Set Temperature-Compensated Crystal Oscillator (TCXO) parameters
  *
@@ -458,6 +496,7 @@ subghz_result_t subghz_set_tcxo_mode(subghz_tcxo_trim_t trim, uint32_t timeout)
   return status;
 }
 
+
 /**
  * @brief Calibrate oscillators and PLLs
  *
@@ -475,6 +514,7 @@ subghz_result_t subghz_calibrate(uint8_t calib_cfg)
   /* Success. */
   return status;
 }
+
 
 /**
  * @brief Set sleep mode
@@ -498,6 +538,7 @@ subghz_result_t subghz_set_sleep(uint8_t sleep_cfg)
   return status;
 }
 
+
 /**
  * @brief Put transceiver in standby mode
  *
@@ -520,6 +561,7 @@ subghz_result_t subghz_set_standby_mode(subghz_standby_mode_t mode)
   return status;
 }
 
+
 /**
  * @brief Set transceiver regulator mode
  *
@@ -536,6 +578,7 @@ subghz_result_t subghz_set_regulator_mode(subghz_regulator_mode_t mode)
   /* Success. */
   return status;
 }
+
 
 /**
  * @brief Set transceiver in FS mode
@@ -555,6 +598,7 @@ subghz_result_t subghz_set_fs_mode(void)
 
   return result;
 }
+
 
 /**
  * @brief Set transceiver in TX mode
@@ -585,6 +629,7 @@ subghz_result_t subghz_set_tx_mode(uint32_t timeout)
   return result;
 }
 
+
 /**
  * @brief Set transceiver in RX mode
  *
@@ -613,6 +658,7 @@ subghz_result_t subghz_set_rx_mode(uint32_t timeout)
   return result;
 }
 
+
 /**
  * @brief Set stop RX timer on preamble
  *
@@ -626,6 +672,7 @@ subghz_result_t subghz_set_stop_rxtimer_on_preamble(subghz_rxtimer_stop_t config
 
   return subghz_write_command(SUBGHZ_SET_STOP_RX_TIMER, params, 1);
 }
+
 
 /**
  * @brief Set RX duty cycle (see section 5.8.3 from RM0453)
@@ -649,6 +696,7 @@ subghz_result_t subghz_set_duty_cycle(uint32_t rx_period, uint32_t sleep_period)
   return subghz_write_command(SUBGHZ_SET_RX, params, 6);
 }
 
+
 /**
  * @brief Enable Channel Activity Detection (only in LoRa mode)
  *
@@ -659,6 +707,7 @@ subghz_result_t subghz_set_cad(void)
 {
   return subghz_write_command(SUBGHZ_SET_CAD, NULL, 0);
 }
+
 
 /**
  * @brief Set TX in continuous wave mode
@@ -671,6 +720,7 @@ subghz_result_t subghz_set_tx_continuous_wave(void)
   return subghz_write_command(SUBGHZ_SET_TX_CONT_WAVE, NULL, 0);
 }
 
+
 /**
  * @brief Set TX in continuous preamble mode
  *
@@ -681,6 +731,7 @@ subghz_result_t subghz_set_tx_continuous_preamble(void)
 {
   return subghz_write_command(SUBGHZ_SET_TX_CONT_PREAMBLE, NULL, 0);
 }
+
 
 /**
  * @brief Set packet type
@@ -694,6 +745,7 @@ subghz_result_t subghz_set_packet_type(subghz_packet_type_t packet_type)
   uint8_t params[] = {packet_type};
   return subghz_write_command(SUBGHZ_SET_PACKET_TYPE, params, 1);
 }
+
 
 /**
  * @brief Get current packet type
@@ -714,6 +766,7 @@ subghz_result_t subghz_get_packet_type(subghz_packet_type_t *packet_type)
   return status;
 }
 
+
 /**
  * @brief Set RF frequency
  *
@@ -733,6 +786,7 @@ subghz_result_t subghz_set_rf_freq(uint32_t freq)
   return subghz_write_command(SUBGHZ_SET_RF_FREQ, params, 4);
 }
 
+
 /**
  * @brief Set TX parameters
  *
@@ -749,6 +803,7 @@ subghz_result_t subghz_set_tx_params(int8_t power, subghz_txparams_ramptime_t ra
 
   return subghz_write_command(SUBGHZ_SET_TX_PARAMS, params, 2);
 }
+
 
 /**
  * @brief Set power amplifier configuration
@@ -769,6 +824,7 @@ subghz_result_t subghz_set_pa_config(uint8_t duty_cycle, uint8_t hp_max, uint8_t
   return subghz_write_command(SUBGHZ_SET_PA_CONFIG, params, 4);
 }
 
+
 /**
  * @brief   Set TX/RX fallback mode
  *
@@ -782,6 +838,7 @@ subghz_result_t subghz_set_tx_rx_fallback_mode(subghz_fallback_mode_t mode)
 
   return subghz_write_command(SUBGHZ_SET_TXRX_FALLBACK, params, 1);
 }
+
 
 /**
  * @brief   Set CAD parameters
@@ -810,6 +867,7 @@ subghz_result_t subghz_set_cad_params(subghz_cad_symbols_t nb_symbols, uint8_t d
   return subghz_write_command(SUBGHZ_SET_CAD_PARAMS, params, 7);
 }
 
+
 /**
  * @brief Set buffer base address for RX and TX packets
  *
@@ -824,6 +882,7 @@ subghz_result_t subghz_set_buffer_base_address(uint8_t tx_base_addr, uint8_t rx_
 
   return subghz_write_command(SUBGHZ_SET_BUFFER_BA, params, 2);
 }
+
 
 /**
  * @brief Set FSK modulation parameters.
@@ -856,6 +915,7 @@ subghz_result_t subghz_set_fsk_modulation_params(uint32_t bitrate, subghz_fsk_ga
   return subghz_write_command(SUBGHZ_SET_MOD_PARAMS, params, 8);
 }
 
+
 /**
  * @brief Set LoRa modulation parameters.
  *
@@ -878,6 +938,7 @@ subghz_result_t subghz_set_lora_modulation_params(subghz_lora_sf_t sf, subghz_lo
   return subghz_write_command(SUBGHZ_SET_MOD_PARAMS, params, 4);
 }
 
+
 /**
  * @brief Set BSPK modulation parameters
  *
@@ -896,6 +957,7 @@ subghz_result_t subghz_set_bpsk_modulation_params(uint32_t bitrate, subghz_bpsk_
 
   return subghz_write_command(SUBGHZ_SET_MOD_PARAMS, params, 4);
 }
+
 
 /**
  * @brief Set generic packet parameters
@@ -929,6 +991,7 @@ subghz_result_t subghz_set_packet_params(uint16_t preamble_length, subghz_det_le
   return subghz_write_command(SUBGHZ_SET_PACKET_PARAMS, params, 9);
 }
 
+
 /**
  * @brief Set LoRa packet parameters
  *
@@ -954,6 +1017,7 @@ subghz_result_t subghz_set_lora_packet_params(uint16_t preamble_length, subghz_l
   return subghz_write_command(SUBGHZ_SET_PACKET_PARAMS, params, 6);
 }
 
+
 /**
  * @brief Set BPSK packet parameters (payload length)
  *
@@ -968,6 +1032,7 @@ subghz_result_t subghz_set_bpsk_packet_params(uint8_t payload_length)
 
   return subghz_write_command(SUBGHZ_SET_PACKET_PARAMS, params, 1);
 }
+
 
 /**
  * @brief Set LoRa symbol timeout
@@ -986,6 +1051,7 @@ subghz_result_t subghz_set_lora_symb_timeout(uint8_t symb_num)
 
   return subghz_write_command(SUBGHZ_SET_LORA_SYMB_TO, params, 1);
 }
+
 
 /**
  * @brief Get RX buffer status (payload length and offset)
@@ -1013,6 +1079,7 @@ subghz_result_t subghz_get_fsk_packet_status(subghz_fsk_packet_status_t *p_packe
   return result;
 }
 
+
 /**
  * @brief Get LoRa packet status.
  *
@@ -1039,6 +1106,7 @@ subghz_result_t subghz_get_lora_packet_status(subghz_lora_packet_status_t *p_pac
   return result;
 }
 
+
 /**
  * @brief Get instantaneous RSSI
  *
@@ -1060,6 +1128,7 @@ subghz_result_t subghz_get_rssi_inst(uint8_t *p_rssi_inst)
   /* Return status. */
   return result;
 }
+
 
 /**
  * @brief Get FSK status
@@ -1087,6 +1156,7 @@ subghz_result_t subghz_get_fsk_stats(subghz_fsk_stats_t *p_fsk_stats)
   return result;
 }
 
+
 /**
  * @brief Get LoRa status
  *
@@ -1113,6 +1183,7 @@ subghz_result_t subghz_get_lora_stats(subghz_lora_stats_t *p_lora_stats)
   return result;
 }
 
+
 /**
  * @brief Reset stats counters for FSK & LoRa
  *
@@ -1126,6 +1197,7 @@ subghz_result_t subghz_reset_stats(void)
   /* Send command. */
   return subghz_write_command(SUBGHZ_RESET_STATS, params, 6);
 }
+
 
 /**
  * @brief Configure IRQ sources
@@ -1159,6 +1231,7 @@ subghz_result_t subghz_config_dio_irq(uint16_t irq_mask, uint16_t irq1_mask,
   return (0x06 << 1);
 }
 
+
 /**
  * @brief Get IRQ status
  *
@@ -1182,6 +1255,7 @@ subghz_result_t subghz_get_irq_status(subghz_irq_status_t *p_irq_status)
   return result;
 }
 
+
 /**
  * @brief Clear IRQ
  *
@@ -1204,6 +1278,7 @@ subghz_result_t subghz_clear_irq_status(subghz_irq_status_t *p_irq_status)
   /* Return result. */
   return result;
 }
+
 
 /**
  * @brief Set TX payload
@@ -1288,7 +1363,7 @@ int subghz_lora_mode(subghz_lora_config_t *p_lora_config)
 
 int subghz_fsk_mode(subghz_fsk_config_t *p_fsk_config)
 {
-  int i, sw_bytes;
+  int i;
   uint16_t syncword_addr;
   uint32_t channel;
 
@@ -1353,6 +1428,7 @@ int subghz_fsk_mode(subghz_fsk_config_t *p_fsk_config)
 
   return SUBGHZ_SUCCESS;
 }
+
 
 /**
  * @brief   Configure the STM32WLxx Power Amplifier.
@@ -1422,6 +1498,7 @@ int subghz_config_pa(subghz_pa_mode_t mode, subghz_pa_pwr_t power)
   }
 }
 
+
 /**
  * @brief   Write frame into TX buffer and send it.
  * @param   p_frame pointer to a frame (byte array) to send
@@ -1453,6 +1530,7 @@ int subghz_send_async(uint8_t *p_frame, int length, uint32_t timeout)
   /* Success. */
   return SUBGHZ_SUCCESS;
 }
+
 
 /**
  * @brief   Write frame into TX buffer and wait for transmission (synchronous)
@@ -1492,6 +1570,7 @@ int subghz_send(uint8_t *p_frame, int length, uint32_t timeout)
   return (g_flag_timeout) ? SUBGHZ_TIMEOUT : SUBGHZ_SUCCESS;
 }
 
+
 /**
  * @brief   Enable RX mode and await a packet
  * @param   timeout Reception timeout
@@ -1517,6 +1596,7 @@ int subghz_receive_async(uint32_t timeout)
   return SUBGHZ_SUCCESS;
 }
 
+
 /**
  * @brief   Enable RX mode and await a packet (synchronous)
  * @param   p_frame   Pointer to a RX buffer
@@ -1539,6 +1619,7 @@ int subghz_receive(uint8_t *p_frame, uint8_t *p_length, uint32_t timeout)
   if (SUBGHZ_CMD_FAILED(subghz_config_dio_irq(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT,
                                               IRQ_RADIO_NONE, IRQ_RADIO_NONE)))
   {
+
     return SUBGHZ_ERROR;
   }
 
@@ -1640,244 +1721,6 @@ void subghz_on_rf_switch_def_cb(bool tx)
 {
 }
 
-/********************************************
- * LoRa TX Test
- *******************************************/
-
-void test_lora_tx(void)
-{
-  uint32_t chan = 0;
-  uint8_t payload[] = "Hello world !";
-
-  printf("Sending LoRa frame:\r\n");
-
-  /* Tx procedure */
-  if (SUBGHZ_CMD_FAILED(subghz_set_buffer_base_address(0, 0)))
-  {
-    printf("Cannot set buffer base address\r\n");
-    return;
-  }
-  else
-  {
-    printf("Buffer base address set.\r\n");
-  }
-
-  if (SUBGHZ_CMD_FAILED(subghz_set_payload(payload, 13)))
-  {
-    printf("Cannot set payload\r\n");
-    return;
-  }
-  else
-  {
-    printf("Payload set.\r\n");
-  }
-
-  if (SUBGHZ_CMD_FAILED(subghz_set_packet_type(SUBGHZ_PACKET_LORA)))
-  {
-    printf("Cannot set packet type\r\n");
-    return;
-  }
-  else
-  {
-    printf("Packet type set.\r\n");
-  }
-
-  if (SUBGHZ_CMD_FAILED(subghz_set_lora_packet_params(12, SUBGHZ_PKT_FIXED_LENGTH, 13, false, false)))
-  {
-    printf("Cannot set LoRa packet params\r\n");
-    return;
-  }
-  else
-  {
-    printf("LoRa packet params set.\r\n");
-  }
-
-  subghz_write_reg(SUBGHZ_GSYNCR0, 0x12);
-  subghz_write_reg(SUBGHZ_GSYNCR1, 0x34);
-  subghz_write_reg(SUBGHZ_GSYNCR2, 0x56);
-  subghz_write_reg(SUBGHZ_GSYNCR3, 0x78);
-
-  SX_FREQ_TO_CHANNEL(chan, 865200000);
-  if (SUBGHZ_CMD_FAILED(subghz_set_rf_freq(chan)))
-  {
-    printf("Cannot set RF freq\r\n");
-    return;
-  }
-  else
-  {
-    printf("RF freq set.\r\n");
-  }
-
-  if (SUBGHZ_CMD_FAILED(subghz_set_pa_config(6, 0, 1)))
-  {
-    printf("Cannot set RF PA config\r\n");
-    return;
-  }
-  else
-  {
-    printf("PA config set.\r\n");
-  }
-
-  if (SUBGHZ_CMD_FAILED(subghz_set_tx_params(0x0E, SUBGHZ_TXPARAMS_RAMPTIME_200US)))
-  {
-    printf("Cannot set TX params\r\n");
-    return;
-  }
-  else
-  {
-    printf("TX params set.\r\n");
-  }
-
-  if (SUBGHZ_CMD_FAILED(subghz_set_lora_modulation_params(SUBGHZ_LORA_SF7, SUBGHZ_LORA_BW250,
-                                                          SUBGHZ_LORA_CR_48, SUBGHZ_LORA_LDRO_DISABLED)))
-  {
-    printf("Cannot set LoRa modulation params\r\n");
-    return;
-  }
-  else
-  {
-    printf("LoRa modulation params set.\r\n");
-  }
-
-  if (SUBGHZ_CMD_FAILED(subghz_config_dio_irq(IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT,
-                                              IRQ_RADIO_NONE, IRQ_RADIO_NONE)))
-  {
-    printf("Cannot set DIO IRQ\r\n");
-    return;
-  }
-  else
-  {
-    printf("DIO IRQ set.\r\n");
-  }
-
-  /* TX mode, low power */
-  gpio_mode_setup(RF_SW_CTRL1_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL1_PIN);
-  gpio_mode_setup(RF_SW_CTRL2_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL2_PIN);
-  gpio_set(RF_SW_CTRL1_GPIO_PORT, RF_SW_CTRL1_PIN);
-  gpio_set(RF_SW_CTRL2_GPIO_PORT, RF_SW_CTRL2_PIN);
-
-  /* Set TX */
-  if (SUBGHZ_CMD_FAILED(subghz_set_tx_mode(0)))
-  {
-    printf("Cannot set TX mode\n");
-    return;
-  }
-  else
-  {
-    printf("TX mode set.\r\n");
-  }
-}
-
-/********************************************
- * LoRa RX Test
- *******************************************/
-
-void test_lora_rx(void)
-{
-  uint32_t chan = 0;
-
-  /* RX Procedure */
-
-  /* Set RX buffer address. */
-  if (SUBGHZ_CMD_FAILED(subghz_set_buffer_base_address(0, 0)))
-  {
-    printf("Cannot set buffer base address\r\n");
-    return;
-  }
-  else
-  {
-    printf("Buffer base address set.\r\n");
-  }
-
-  /* We want a LoRa packet. */
-  if (SUBGHZ_CMD_FAILED(subghz_set_packet_type(SUBGHZ_PACKET_LORA)))
-  {
-    printf("Cannot set packet type\r\n");
-    return;
-  }
-  else
-  {
-    printf("Packet type set.\r\n");
-  }
-
-  /* LoRa transceiver configuration. */
-  if (SUBGHZ_CMD_FAILED(subghz_set_lora_packet_params(12, SUBGHZ_PKT_FIXED_LENGTH, 13, false, false)))
-  {
-    printf("Cannot set LoRa packet params\r\n");
-    return;
-  }
-  else
-  {
-    printf("LoRa packet params set.\r\n");
-  }
-
-  /* Synchronization word. */
-  subghz_write_reg(SUBGHZ_GSYNCR0, 0x12);
-  subghz_write_reg(SUBGHZ_GSYNCR1, 0x34);
-  subghz_write_reg(SUBGHZ_GSYNCR2, 0x56);
-  subghz_write_reg(SUBGHZ_GSYNCR3, 0x78);
-
-  /* Set freq. */
-  SX_FREQ_TO_CHANNEL(chan, 865200000);
-  if (SUBGHZ_CMD_FAILED(subghz_set_rf_freq(chan)))
-  {
-    printf("Cannot set RF freq\r\n");
-    return;
-  }
-  else
-  {
-    printf("RF freq set.\r\n");
-  }
-
-  /* Configure PA. */
-  if (SUBGHZ_CMD_FAILED(subghz_set_pa_config(6, 0, 1)))
-  {
-    printf("Cannot set RF PA config\r\n");
-    return;
-  }
-  else
-  {
-    printf("PA config set.\r\n");
-  }
-
-  /* Set LoRa modulation params. */
-  if (SUBGHZ_CMD_FAILED(subghz_set_lora_modulation_params(SUBGHZ_LORA_SF7, SUBGHZ_LORA_BW250,
-                                                          SUBGHZ_LORA_CR_48, SUBGHZ_LORA_LDRO_DISABLED)))
-  {
-    printf("Cannot set LoRa modulation params\r\n");
-    return;
-  }
-  else
-  {
-    printf("LoRa modulation params set.\r\n");
-  }
-
-  if (SUBGHZ_CMD_FAILED(subghz_config_dio_irq(IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT, IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT,
-                                              IRQ_RADIO_NONE, IRQ_RADIO_NONE)))
-  {
-    printf("Cannot set DIO IRQ\r\n");
-    return;
-  }
-  else
-  {
-    printf("DIO IRQ set.\r\n");
-  }
-
-  /* RX mode, low power */
-  gpio_mode_setup(RF_SW_CTRL1_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL1_PIN);
-  gpio_mode_setup(RF_SW_CTRL2_GPIO_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, RF_SW_CTRL2_PIN);
-  gpio_set(RF_SW_CTRL1_GPIO_PORT, RF_SW_CTRL1_PIN);
-  gpio_clear(RF_SW_CTRL2_GPIO_PORT, RF_SW_CTRL2_PIN);
-
-  if (SUBGHZ_CMD_FAILED(subghz_set_rx_mode(0xFFFFFF)))
-  {
-    printf("Cannot enable RX mode\r\n");
-  }
-  else
-  {
-    printf("Continuous RX mode set.\r\n");
-  }
-}
 
 /*********************************************
  * RADIO IRQ Handling
@@ -1942,4 +1785,173 @@ void radio_isr(void)
 
   /* Clear IRQ. */
   subghz_clear_irq_status(&irq_clr);
+}
+
+
+/**
+ * @brief   Set synchronization word (0 - 64 bits)
+ * @param   p_syncword    pointer to a buffer containing the syncword value
+ * @param   length        syncword size in bytes
+ * @retval  SUBGHZ_SUCCESS on success, SUBGHZ_ERROR otherwise
+ */
+
+int subghz_set_syncword(uint8_t *p_syncword, int length)
+{
+  int i;
+  uint16_t syncword_addr;
+
+  /* LoRa mode: synchronization word must be 2 bytes. */
+  if (g_subghz_state.current_mode == SUBGHZ_MODE_LORA)
+  {
+    if (length == 2)
+    {
+      subghz_write_reg(SUBGHZ_LSYNCRL, p_syncword[0]);
+      subghz_write_reg(SUBGHZ_LSYNCRH, p_syncword[1]);
+    }
+    else
+    {
+      /* Error, length does not match. */
+      return SUBGHZ_ERROR;
+    }
+  }
+  else
+  {
+    /* Set Synchronization Word (SYNC_WORD). */
+    if (length > 0)
+    {
+      syncword_addr=SUBGHZ_GSYNCR0;
+      for (i=0; i<length; i++)
+      {
+        subghz_write_reg(syncword_addr--, p_syncword[i]);
+      }
+    }
+  }
+
+  /* Success. */
+  return SUBGHZ_SUCCESS;
+}
+
+
+/**
+ * @brief   Set 16-bit sync word
+ * @param   syncword  16-bit syncword
+ * @retval  SUBGHZ_SUCCESS on success, SUBGHZ_ERROR otherwise
+ */
+
+int subghz_set_syncword16(uint16_t syncword)
+{
+  /* Forward to our generic syncword setter. */
+  return subghz_set_syncword((uint8_t *)&syncword, 2);
+}
+
+/**
+ * @brief   Set 32-bit sync word
+ * @param   syncword  32-bit syncword
+ * @retval  SUBGHZ_SUCCESS on success, SUBGHZ_ERROR otherwise
+ */
+
+int subghz_set_syncword32(uint32_t syncword)
+{
+  /* Forward to our generic syncword setter. */
+  return subghz_set_syncword((uint8_t *)&syncword, 4);
+}
+
+
+/**
+ * @brief   Set 64-bit sync word
+ * @param   syncword_l  Bits 0-31 of sync word
+ * @param   syncword_h  Bits 32-63 of sync word
+ * @retval  SUBGHZ_SUCCESS on success, SUBGHZ_ERROR otherwise
+ */
+
+int subghz_set_syncword64(uint32_t syncword_l, uint32_t syncword_h)
+{
+  uint32_t syncword[2];
+
+  /* Fill syncword buffer. */
+  syncword[0] = syncword_l;
+  syncword[1] = syncword_h;
+
+  /* Forward to our generic syncword setter. */
+  return subghz_set_syncword((uint8_t *)&syncword, 8);
+}
+
+
+/**
+ * @brief   Enable or disable synchronization detection.
+ * @param   enable  True to enable sync word detection, false to disable.
+ * @retval  Always SUBGHGZ_SUCCESS.
+ */
+
+int subghz_enable_syncword(bool enable)
+{
+  uint8_t reg;
+
+  /* First, read register value. */
+  subghz_read_reg(SUBGHZ_GPKTCTL1AR, &reg);
+
+  if (enable)
+  {
+    reg |= SUBGHZ_GPKTCTL1AR_SYNCDETEN_MSK;  
+  }
+  else
+  {
+    reg &= ~(SUBGHZ_GPKTCTL1AR_SYNCDETEN_MSK);
+  }
+
+  /* Write register back. */
+  subghz_write_reg(SUBGHZ_GPKTCTL1AR, reg);
+
+  /* Success. */
+  return SUBGHZ_SUCCESS;
+}
+
+
+/**
+ * @brief   Set CRC initial value (16 bits)
+ * @param   crc_init  CRC initial value
+ * @retval  Always SUBGHZ_SUCCESS
+ */
+
+int subghz_set_crc_init(uint16_t crc_init)
+{
+  /* Write CRC initial value in the correct registers. */
+  subghz_write_reg(SUBGHZ_GCRCINIRL, crc_init & 0x00ff );
+  subghz_write_reg(SUBGHZ_GCRCINIRH, (crc_init >> 8) & 0x00ff);
+
+  /* Success. */
+  return SUBGHZ_SUCCESS;
+}
+
+
+/**
+ * @brief   Set CRC polynomial
+ * @param   crc_poly  CRC polynomial
+ * @retval  Always SUBGHZ_SUCCESS
+ */
+
+int subghz_set_crc_poly(uint16_t crc_poly)
+{
+  /* Write CRC initial value in the correct registers. */
+  subghz_write_reg(SUBGHZ_GCRCPOLRL, crc_poly & 0x00ff );
+  subghz_write_reg(SUBGHZ_GCRCPOLRH, (crc_poly >> 8) & 0x00ff);
+
+  /* Success. */
+  return SUBGHZ_SUCCESS;
+}
+
+
+/**
+ * @brief   Set whitening initial value (8 bits)
+ * @param   white_init  Whitening initial value
+ * @retval  Always SUBGHZ_SUCCESS.
+ */
+
+int subghz_set_whitening_init(uint8_t white_init)
+{
+  /* Write whitening initial value (8 bits) */
+  subghz_write_reg(SUBGHZ_GWHITEINIRL, white_init);
+
+  /* Success. */
+  return SUBGHZ_SUCCESS;
 }

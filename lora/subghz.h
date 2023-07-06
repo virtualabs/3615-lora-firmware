@@ -90,6 +90,9 @@
 #define SUBGHZ_WRITE_BUFFER          0x0E
 #define SUBGHZ_WRITE_REGISTER        0x0D
 
+/* Registers masks */
+#define SUBGHZ_GPKTCTL1AR_SYNCDETEN_MSK     (1 << 5)
+
 /* Constants */
 #define SUBGHZ_STATUS_MODE_MASK      (7 << 4)
 #define SUBGHZ_STATUS_CMD_MASK       (7 << 1)
@@ -620,8 +623,18 @@ int subghz_send_async(uint8_t *p_frame, int length, uint32_t timeout);
 int subghz_receive(uint8_t *p_frame, uint8_t *p_length, uint32_t timeout);
 int subghz_receive_async(uint32_t timeout);
 
-void test_lora_tx(void);
-void test_lora_rx(void);
+/* Syncword management (FSK / LoRa). */
+int subghz_set_syncword(uint8_t *p_syncword, int length);
+int subghz_set_syncword16(uint16_t syncword);
+int subghz_set_syncword32(uint32_t syncword);
+int subghz_set_syncword64(uint32_t syncword_l, uint32_t syncword_h);
+int subghz_enable_syncword(bool enable);
 
+/* CRC management. */
+int subghz_set_crc_init(uint16_t crc_init);
+int subghz_set_crc_poly(uint16_t crc_poly);
+
+/* Whitening management. */
+int subghz_set_whitening_init(uint8_t white_init);
 
 #endif /* __INC_SUBGHZ_H */
